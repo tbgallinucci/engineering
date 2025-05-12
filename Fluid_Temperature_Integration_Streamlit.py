@@ -7,11 +7,11 @@ st.title("Pump Heat Simulation Tool")
 st.write("Enter your pump and system parameters below:")
 
 # User Inputs
-pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=5.0)
-pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=10.0)
-pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=70.0)
-num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
-t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=5.0)
+pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=10.0)
+pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=550.0)
+pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=3, value=1)
+t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
 
 if st.button("Run Simulation"):
     # Converted Values
