@@ -1,15 +1,50 @@
+import streamlit as st
+import numpy as np
+import plotly.graph_objects as go
+
+# Streamlit App Title
+st.title("Pump Heat Simulation Tool")
+st.write("Enter your pump, fluid, piping, and insulation parameters below:")
+
+# === Layout Columns ===
+col1, col2 = st.columns(2)
+
+# === Pump Data ===
+with col1:
+    st.header("Pump Data")
+    pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=40.0)
+    pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=550.0)
+    pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+    num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+
+# === Fluid Data ===
+with col2:
+    st.header("Fluid Data")
+    total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
+    rho = st.number_input("Fluid density (kg/m³):", min_value=100.0, value=850.0)
+    cp_fluid = st.number_input("Fluid specific heat capacity (J/kg.K):", min_value=0.1, value=2000.0) 
+    T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
+    k_fluid = st.number_input("Fluid thermal conductivity (W/m·K):", min_value=0.01, value=0.12)
+    mu = st.number_input("Fluid dynamic viscosity (Pa·s):", min_value=0.01, value=0.3)
+
 # === Piping Data ===
+st.header("Piping Data")
+col3, col4 = st.columns(2)
+
 with col3:
-    st.header("Piping Data")
     d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
     D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
     L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
 
-    st.subheader("Pipe Insulation")
-    use_insulation = st.checkbox("Include insulation?", value=False)
+with col4:
+    # === Insulation Data ===
+    st.header("Insulation")
+    use_insulation = st.checkbox("Use pipe insulation?", value=True)
     if use_insulation:
-        insulation_thickness = st.number_input("Insulation thickness (m):", min_value=0.001, value=0.05)
-        k_ins = st.number_input("Insulation thermal conductivity (W/m·K):", min_value=0.001, value=0.035)
+        D_insul = st.number_input("Outer diameter with insulation (m):", min_value=D+0.001, value=0.4)
+        k_insul = st.number_input("Insulation thermal conductivity (W/m·K):", min_value=0.01, value=0.035)
+
+t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
 
 # === Run Simulation ===
 if st.button("Run Simulation"):
@@ -24,18 +59,21 @@ if st.button("Run Simulation"):
     n = 0.33
 
     # Thermal Resistances
+    # Internal convection
     R_conv_in = 1 / (0.023 * k_fluid * (4 * F * rho / (np.pi * d * mu))**0.8 * (mu * cp_fluid / k_fluid)**n * np.pi * L)
+    # Pipe conduction
     R_cond_pipe = np.log(D / d) / (2 * np.pi * k_pipe * L)
-
-    # Optional insulation
+    # Insulation conduction
     if use_insulation:
-        D_ins = D + 2 * insulation_thickness
-        R_insulation = np.log(D_ins / D) / (2 * np.pi * k_ins * L)
-        R_conv_out = 1 / (h_out * np.pi * D_ins * L)
-        R_total = R_conv_in + R_cond_pipe + R_insulation + R_conv_out
+        R_cond_insul = np.log(D_insul / D) / (2 * np.pi * k_insul * L)
     else:
-        R_conv_out = 1 / (h_out * np.pi * D * L)
-        R_total = R_conv_in + R_cond_pipe + R_conv_out
+        R_cond_insul = 0
+    # External convection
+    outer_diameter = D_insul if use_insulation else D
+    R_conv_out = 1 / (h_out * np.pi * outer_diameter * L)
+
+    # Total resistance
+    R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
 
     # Equilibrium temps
     T_eq = T_ambient + dWp_dt * R_total
