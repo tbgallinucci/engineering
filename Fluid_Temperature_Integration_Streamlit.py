@@ -1,17 +1,17 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 # Streamlit App Title
 st.title("Pump Heat Simulation Tool")
 st.write("Enter your pump and system parameters below:")
 
 # User Inputs
-pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=40.0)
-pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=550.0)
-pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
-num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=3, value=1)
-t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
+pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=5.0)
+pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=10.0)
+pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=70.0)
+num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=5.0)
 
 if st.button("Run Simulation"):
     # Converted Values
@@ -70,23 +70,35 @@ if st.button("Run Simulation"):
     if t_90_h is not None:
         st.info(f"Time to reach 90% equilibrium: ≈ {t_90_h:.2f} h")
 
-    # Plotting
-    fig, ax = plt.subplots(figsize=(8,5))
+    # Interactive Plot using Plotly
+    fig = go.Figure()
+
     label_text = f"""{num_pumps} Pump(s), {pump_power_kw*num_pumps:.1f} kW, {pump_flow_m3h*num_pumps:.1f} m³/h\nTotal Fluid Volume = {total_volume_m3:.1f} m³"""
 
-    ax.plot(time / 3600, Tf, label=label_text)
-    ax.axhline(T_eq, color='red', linestyle='--', label=f'Equilibrium Temp: {T_eq:.1f} °C')
-    ax.axhline(T_90, color='green', linestyle=':', label=f'90% Equilibrium Temp: {T_90:.1f} °C')
+    # Add the temperature over time curve
+    fig.add_trace(go.Scatter(x=time / 3600, y=Tf, mode='lines', name=label_text))
 
+    # Add equilibrium temperature line
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', name=f'Equilibrium Temp: {T_eq:.1f} °C', line=dict(color='red', dash='dash')))
+
+    # Add 90% equilibrium temperature line
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', name=f'90% Equilibrium Temp: {T_90:.1f} °C', line=dict(color='green', dash='dot')))
+
+    # Add time to reach 90% equilibrium line
     if t_90_h is not None:
-        ax.axvline(t_90_h, color='green', linestyle=':', label=f'Time to reach 90% equilibrium ≈ {t_90_h:.2f} h')
+        fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient, T_90_actual], mode='lines', name=f'Time to reach 90% equilibrium ≈ {t_90_h:.2f} h', line=dict(color='green', dash='dot')))
 
-    ax.set_xlabel('Time (h)')
-    ax.set_ylabel('Temperature (°C)')
-    ax.set_title('Temperature Rise Over Time')
-    ax.grid(True)
-    ax.legend()
-    st.pyplot(fig)
+    # Update layout
+    fig.update_layout(
+        title="Temperature Rise Over Time",
+        xaxis_title="Time (h)",
+        yaxis_title="Temperature (°C)",
+        showlegend=True,
+        template="plotly_dark"
+    )
+
+    # Display interactive plot in Streamlit
+    st.plotly_chart(fig)
 
 
 
