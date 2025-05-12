@@ -38,9 +38,9 @@ with col3:
 
 with col4:
     # === Insulation Data ===
-    # st.header("Insulation")
+    st.header("Insulation")
     use_insulation = st.checkbox("Use pipe insulation?", value=True)
-    if use_insulation:
+if use_insulation:
     insulation_thickness = st.number_input("Insulation thickness (m):", min_value=0.001, value=0.04)  # e.g., 40mm
     D_insul = D + 2 * insulation_thickness
     st.write(f"Outer diameter with insulation: {D_insul:.3f} m")
