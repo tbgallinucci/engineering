@@ -133,7 +133,7 @@ if st.button("Run Simulation"):
 
     # Add green dot at 90% equilibrium point
     fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
-                             marker=dict(color='lime', size=7), 
+                             marker=dict(color='green', size=7), 
                              name='90% Equilibrium Point'))
 
     # Update layout
