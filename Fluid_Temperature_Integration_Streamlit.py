@@ -27,6 +27,7 @@ with col2:
     pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
     num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
 
+
 # === Piping Data ===
 st.header("Piping Data")
 col3, col4 = st.columns(2)
@@ -34,66 +35,54 @@ col3, col4 = st.columns(2)
 with col3:
     d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
     D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
-    L = st.number_input("Total pipe length (m):", min_value=1.0, value=40.0)
+    L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
 
+    # Insulation option should not be indented too far
     use_insulation = st.checkbox("Use pipe insulation?", value=False)
 
     if use_insulation:
-        insulation_thickness = st.number_input("Insulation thickness (m):", min_value=0.001, value=0.01)
+        insulation_thickness = st.number_input("Insulation thickness (m):", min_value=0.001, value=0.01)  # e.g., 10mm
         D_insul = D + 2 * insulation_thickness
         st.write(f"Outer diameter with insulation: {D_insul:.3f} m")
         k_insul = st.number_input("Insulation thermal conductivity (W/m·K):", min_value=0.01, value=0.04)
-        L_insul = st.number_input("Length of insulated section (m):", min_value=0.0, max_value=L, value=L)
-    else:
-        D_insul = D
-        k_insul = None
-        L_insul = 0.0
 
-with col4:
-    k_pipe = st.number_input("Pipe wall thermal conductivity (W/m·K):", min_value=0.1, value=45.0)
-    h_out = st.number_input("External heat transfer coefficient h (W/m²·K):", min_value=1.0, value=25.0)
 
 t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
 
 # === Run Simulation ===
 if st.button("Run Simulation"):
-    pump_heat_factor = 1.0
+    # Converted Values
+    pump_heat_factor = 1.0  # lost power to fluid
     dWp_dt = pump_power_kw * pump_eff/100 * pump_heat_factor * 1000 * num_pumps  # W
     F = (pump_flow_m3h / 3600) * num_pumps  # m³/s
 
     m = total_volume_m3 * rho  # kg
+    k_pipe = 45  # W/m.K
+    h_out = 25  # W/m2.K
     n = 0.33
 
-    # === Thermal Resistances ===
+    # Thermal Resistances
     # Internal convection
-    Re = 4 * F * rho / (np.pi * d * mu)
-    Pr = mu * cp_fluid / k_fluid
-    h_in = 0.023 * k_fluid * Re**0.8 * Pr**n / d
-    R_conv_in = 1 / (h_in * np.pi * d * L)
-
-    # Pipe wall conduction
+    R_conv_in = 1 / (0.023 * k_fluid * (4 * F * rho / (np.pi * d * mu))**0.8 * (mu * cp_fluid / k_fluid)**n * np.pi * L)
+    # Pipe conduction
     R_cond_pipe = np.log(D / d) / (2 * np.pi * k_pipe * L)
-
-    # Insulation conduction (only on insulated length)
-    if use_insulation and L_insul > 0:
-        R_cond_insul = np.log(D_insul / D) / (2 * np.pi * k_insul * L_insul)
+    # Insulation conduction
+    if use_insulation:
+        R_cond_insul = np.log(D_insul / D) / (2 * np.pi * k_insul * L)
     else:
-        R_cond_insul = 0.0
-
-    # External convection (splitting into insulated and bare lengths)
-    L_bare = L - L_insul
-    R_conv_out_insul = 1 / (h_out * np.pi * D_insul * L_insul) if L_insul > 0 else 0.0
-    R_conv_out_bare = 1 / (h_out * np.pi * D * L_bare) if L_bare > 0 else 0.0
-    R_conv_out = R_conv_out_insul + R_conv_out_bare
+        R_cond_insul = 0
+    # External convection
+    outer_diameter = D_insul if use_insulation else D
+    R_conv_out = 1 / (h_out * np.pi * outer_diameter * L)
 
     # Total resistance
     R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
 
-    # === Equilibrium Temperatures ===
+    # Equilibrium temps
     T_eq = T_ambient + dWp_dt * R_total
     T_90 = T_ambient + 0.9 * (T_eq - T_ambient)
 
-    # === Time Marching Simulation ===
+    # Euler Simulation
     dt = 0.1
     t_max = t_max_h * 3600
     time = np.arange(0, t_max, dt)
@@ -104,6 +93,7 @@ if st.button("Run Simulation"):
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
 
+    # Find 90% time
     idx_90 = np.where(Tf >= T_90)[0]
     if len(idx_90) > 0:
         t_90_h = time[idx_90[0]] / 3600
@@ -112,32 +102,41 @@ if st.button("Run Simulation"):
         t_90_h = None
         T_90_actual = None
 
-    # === Results Display ===
+    # Results Display
     st.success(f"Equilibrium Temperature: {T_eq:.1f} °C")
     st.info(f"90% of Equilibrium Temp: {T_90:.1f} °C")
     if t_90_h is not None:
         st.info(f"Time to reach 90% equilibrium: ≈ {t_90_h:.2f} h")
 
-    # === Plot ===
+    # Interactive Plot using Plotly
     fig = go.Figure()
 
     label_text = f"""{num_pumps} Pump(s), {pump_power_kw*num_pumps:.1f} kW, {pump_flow_m3h*num_pumps:.1f} m³/h\nTotal Fluid Volume = {total_volume_m3:.1f} m³"""
 
+    # Add the temperature over time curve
     fig.add_trace(go.Scatter(x=time / 3600, y=Tf, mode='lines', name=label_text))
+
+    # Add equilibrium temperature line
     fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', 
                              name=f'Equilibrium Temp: {T_eq:.1f} °C', 
                              line=dict(color='red', dash='dash')))
+
+    # Add 90% equilibrium temperature line (horizontal)
     fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', 
                              name=f'90% Equilibrium Temp: {T_90:.1f} °C', 
                              line=dict(color='green', dash='dot')))
-    if t_90_h is not None:
-        fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
-                                 name=f'Time to reach 90% equilibrium ≈ {t_90_h:.2f} h', 
-                                 line=dict(color='green', dash='dot')))
-        fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
-                                 marker=dict(color='green', size=7), 
-                                 name='90% Equilibrium Point'))
 
+    # Add time to reach 90% equilibrium line (vertical, crossing whole plot)
+    fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
+                             name=f'Time to reach 90% equilibrium ≈ {t_90_h:.2f} h', 
+                             line=dict(color='green', dash='dot')))
+
+    # Add green dot at 90% equilibrium point
+    fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
+                             marker=dict(color='green', size=7), 
+                             name='90% Equilibrium Point'))
+
+    # Update layout
     fig.update_layout(
         title="Temperature Rise Over Time",
         xaxis_title="Time (h)",
@@ -145,6 +144,8 @@ if st.button("Run Simulation"):
         showlegend=True,
         template="plotly_dark"
     )
+
+    # Display interactive plot in Streamlit
     st.plotly_chart(fig)
 
 
