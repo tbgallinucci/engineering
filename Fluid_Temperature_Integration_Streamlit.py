@@ -51,7 +51,7 @@ t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.
 # === Run Simulation ===
 if st.button("Run Simulation"):
     # Converted Values
-    pump_heat_factor = 0.5  # % of lost power to fluid
+    pump_heat_factor = 0.3  # % of lost power to fluid
     dWp_dt = pump_power_kw * (1 - pump_eff / 100) * pump_heat_factor * 1000 * num_pumps  # W
     F = (pump_flow_m3h / 3600) * num_pumps  # m³/s
 
