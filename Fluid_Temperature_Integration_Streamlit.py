@@ -6,29 +6,43 @@ import plotly.graph_objects as go
 st.title("Pump Heat Simulation Tool")
 st.write("Enter your pump, fluid, and piping parameters below:")
 
+# === Layout Columns ===
+col1, col2 = st.columns(2)
+
 # === Pump Data ===
-st.header("Pump Data")
-pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=40.0)
-pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=550.0)
-pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
-num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
-t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
+with col1:
+    st.header("Pump Data")
+    pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=40.0)
+    pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=550.0)
+    pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+    num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
 
 # === Fluid Data ===
-st.header("Fluid Data")
-total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
-rho = st.number_input("Fluid density (kg/m³):", min_value=100.0, value=850.0)
-cp_fluid = 2000  # J/kg.K (kept fixed for simplicity, but you could expose it too)
-T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
-k_fluid = st.number_input("Fluid thermal conductivity (W/m·K):", min_value=0.01, value=0.12)
-mu = st.number_input("Fluid dynamic viscosity (Pa·s):", min_value=0.01, value=0.3)
+with col2:
+    st.header("Fluid Data")
+    total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
+    rho = st.number_input("Fluid density (kg/m³):", min_value=100.0, value=850.0)
+    cp_fluid = st.number_input("Fluid specific heat capacity (J/kg.K):", min_value=0.1, value=2000.0) 
+    T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
+    k_fluid = st.number_input("Fluid thermal conductivity (W/m·K):", min_value=0.01, value=0.12)
+    mu = st.number_input("Fluid dynamic viscosity (Pa·s):", min_value=0.01, value=0.3)
+
+# === Second Row Columns ===
+col3, col4 = st.columns(2)
 
 # === Piping Data ===
-st.header("Piping Data")
-d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
-D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
-L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
+with col3:
+    st.header("Piping Data")
+    d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
+    D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
+    L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
 
+# === Simulation Settings ===
+with col4:
+    st.header("Simulation Settings")
+    t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
+
+# === Run Simulation ===
 if st.button("Run Simulation"):
     # Converted Values
     pump_heat_factor = 0.5  # % of lost power to fluid
@@ -105,6 +119,7 @@ if st.button("Run Simulation"):
 
     # Display interactive plot in Streamlit
     st.plotly_chart(fig)
+
 
 
 
