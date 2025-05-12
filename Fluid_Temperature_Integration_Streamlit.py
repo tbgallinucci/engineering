@@ -35,14 +35,16 @@ with col3:
     d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
     D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
     L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
-    
-        use_insulation = st.checkbox("Use pipe insulation?", value=True)
+
+    # Insulation option should not be indented too far
+    use_insulation = st.checkbox("Use pipe insulation?", value=True)
 
     if use_insulation:
         insulation_thickness = st.number_input("Insulation thickness (m):", min_value=0.001, value=0.04)  # e.g., 40mm
         D_insul = D + 2 * insulation_thickness
         st.write(f"Outer diameter with insulation: {D_insul:.3f} m")
         k_insul = st.number_input("Insulation thermal conductivity (W/m·K):", min_value=0.01, value=0.035)
+
 
 t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
 
