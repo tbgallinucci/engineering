@@ -117,14 +117,24 @@ if st.button("Run Simulation"):
     fig.add_trace(go.Scatter(x=time / 3600, y=Tf, mode='lines', name=label_text))
 
     # Add equilibrium temperature line
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', name=f'Equilibrium Temp: {T_eq:.1f} °C', line=dict(color='red', dash='dash')))
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', 
+                             name=f'Equilibrium Temp: {T_eq:.1f} °C', 
+                             line=dict(color='red', dash='dash')))
 
-    # Add 90% equilibrium temperature line
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', name=f'90% Equilibrium Temp: {T_90:.1f} °C', line=dict(color='green', dash='dot')))
+    # Add 90% equilibrium temperature line (horizontal)
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', 
+                             name=f'90% Equilibrium Temp: {T_90:.1f} °C', 
+                             line=dict(color='green', dash='dot')))
 
-    # Add time to reach 90% equilibrium line
-    if t_90_h is not None:
-        fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient, T_90_actual], mode='lines', name=f'Time to reach 90% equilibrium ≈ {t_90_h:.2f} h', line=dict(color='green', dash='dot')))
+    # Add time to reach 90% equilibrium line (vertical, crossing whole plot)
+    fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
+                             name=f'Time to reach 90% equilibrium ≈ {t_90_h:.2f} h', 
+                             line=dict(color='green', dash='dot')))
+
+    # Add green dot at 90% equilibrium point
+    fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
+                             marker=dict(color='lime', size=10), 
+                             name='90% Equilibrium Point'))
 
     # Update layout
     fig.update_layout(
