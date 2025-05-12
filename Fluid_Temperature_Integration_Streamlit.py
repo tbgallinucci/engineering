@@ -22,9 +22,9 @@ with col1:
 # === Pump Data ===
 with col2:
     st.header("Pump Data")
-    pump_power_kw = st.number_input("Pump power per pump (kW):", min_value=0.1, value=40.0)
-    pump_flow_m3h = st.number_input("Pump flow rate per pump (m³/h):", min_value=0.1, value=550.0)
-    pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+    pump_power_kw = st.number_input("Hydraulic power per pump (kW):", min_value=0.1, value=40.0)
+    pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
+    # pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
     num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
 
 
@@ -52,8 +52,8 @@ t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.
 # === Run Simulation ===
 if st.button("Run Simulation"):
     # Converted Values
-    pump_heat_factor = 1.0  # % of lost power to fluid
-    dWp_dt = pump_power_kw * (1 - pump_eff / 100) * pump_heat_factor * 1000 * num_pumps  # W
+    pump_heat_factor = 1.0  # lost power to fluid
+    dWp_dt = pump_power_kw * pump_heat_factor * 1000 * num_pumps  # W
     F = (pump_flow_m3h / 3600) * num_pumps  # m³/s
 
     m = total_volume_m3 * rho  # kg
