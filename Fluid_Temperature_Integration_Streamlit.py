@@ -80,7 +80,7 @@ if st.button("Run Simulation"):
 
     # Equilibrium temps
     T_eq = T_ambient + dWp_dt * R_total
-    T_90 = T_ambient + 0.9 * (T_eq - T_ambient)
+    T_90 =  0.9 * T_eq
 
     # Euler Simulation
     dt = 0.1
