@@ -124,19 +124,19 @@ if st.button("Run Simulation"):
         Tf[i] = Tf[i-1] + dT_dt * dt
 
     if fluid_choice == "KRD MAX 225":
-    T_90 =  -1 / 0.046 * np.log(min_mu / 0.1651)
-    T_110 = -1 / 0.046 * np.log(max_mu / 0.1651)
-    T_target = -1 / 0.046 * np.log(target_mu / 1000 / 0.1651)
+        T_90 =  -1 / 0.046 * np.log(min_mu / 0.1651)
+        T_110 = -1 / 0.046 * np.log(max_mu / 0.1651)
+        T_target = -1 / 0.046 * np.log(target_mu / 1000 / 0.1651)
 
     elif fluid_choice == "KRD MAX 2205":
-    T_90 =  -1 / 0.053 * np.log(min_mu / 1.9133)
-    T_110 = -1 / 0.053 * np.log(max_mu / 1.9133)
-    T_target = -1 / 0.053 * np.log(target_mu / 1000 / 1.9133)
+        T_90 =  -1 / 0.053 * np.log(min_mu / 1.9133)
+        T_110 = -1 / 0.053 * np.log(max_mu / 1.9133)
+        T_target = -1 / 0.053 * np.log(target_mu / 1000 / 1.9133)
 
     elif fluid_choice == "KRD MAX 685":
-    T_90 =  -1 / 0.054 * np.log(min_mu / 0.5933)
-    T_110 = -1 / 0.054 * np.log(max_mu / 0.5933)
-    T_target = -1 / 0.054 * np.log(target_mu / 1000 / 0.5933)
+        T_90 =  -1 / 0.054 * np.log(min_mu / 0.5933)
+        T_110 = -1 / 0.054 * np.log(max_mu / 0.5933)
+        T_target = -1 / 0.054 * np.log(target_mu / 1000 / 0.5933)
 
     elif fluid_choice == "KRD MAX 55":
     # Inverse of polynomial needs to be solved numerically
