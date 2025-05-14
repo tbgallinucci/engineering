@@ -81,7 +81,7 @@ if use_insulation:
     k_insul = st.number_input("Insulation thermal conductivity (W/m·K):", min_value=0.01, value=0.04)
 
 
-t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
+t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=10.0)
 
 # === Run Simulation ===
 if st.button("Run Simulation"):
@@ -167,13 +167,27 @@ if st.button("Run Simulation"):
         dT_dt_calib = (dWp_dt_calib - (Tf_calib[i-1] - T_ambient) / R_total_calib) / (m * cp_fluid)
         Tf_calib[i] = Tf_calib[i-1] + dT_dt_calib * dt
 
+    # Find 90% time
+    idx_90 = np.where(Tf >= T_90)[0]
+    if len(idx_90) > 0:
+        t_90_h = time[idx_90[0]] / 3600
+        T_90_actual = Tf[idx_90[0]]
+    else:
+        t_90_h = None
+        T_90_actual = None
+
     # Display Results for Calibration Phase
-    st.write(f"Calibration Phase started at {t_110_h:.2f} hours with temperature {T_110_actual:.2f}°C")
+    st.write(f"Calibration Phase starting at {t_110_h:.2f} hours with temperature {T_110_actual:.2f}°C")
+
+    st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
+    st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
+    st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
+    st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
 
     # Create plot of Temperature over time
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=time_heating_truncated/3600, y=Tf_heating_truncated, mode='lines', name='Heating Phase'))
-    fig.add_trace(go.Scatter(x=time_calib/3600, y=Tf_calib, mode='lines', name='Calibration Phase'))
+    fig.add_trace(go.Scatter(x=time_heating_truncated/3600, y=Tf_heating_truncated, mode='lines', name='Heating Phase', line=dict(color='red')))
+    fig.add_trace(go.Scatter(x=time_calib/3600, y=Tf_calib, mode='lines', name='Calibration Phase', line=dict(color='blue')))
     fig.update_layout(title="Temperature vs Time", xaxis_title="Time (hours)", yaxis_title="Temperature (°C)")
     st.plotly_chart(fig)
 
