@@ -166,16 +166,18 @@ if st.button("Run Simulation"):
         dT_dt_calib = (dWp_dt_calib - (Tf_calib[i-1] - T_ambient) / R_total_calib) / (m * cp_fluid)
         Tf_calib[i] = Tf_calib[i-1] + dT_dt_calib * dt
 
-    T_eq = T_ambient + dWp_dt * R_total
-
-    # Find 90% time
-    idx_90 = np.where(Tf >= T_90)[0]
-    if len(idx_90) > 0:
-        t_90_h = time[idx_90[0]] / 3600
-        T_90_actual = Tf[idx_90[0]]
+    # Calculate the 90% viscosity temperature (T_90) and equilibrium temperature (T_eq) in the calibration phase
+    idx_90_calib = np.where(Tf_calib >= T_90)[0]
+    if len(idx_90_calib) > 0:
+        t_90_h = time_calib[idx_90_calib[0]] / 3600  # Convert seconds to hours
+        T_90_actual = Tf_calib[idx_90_calib[0]]
     else:
         t_90_h = None
         T_90_actual = None
+
+    # Calculate the equilibrium temperature (T_eq) based on the calibration phase parameters
+    R_total_calib = R_conv_in_calib + R_cond_pipe + R_cond_insul + R_conv_out
+    T_eq = T_ambient + dWp_dt_calib * R_total_calib
 
     # Display Results for Calibration Phase
     st.write(f"Calibration Phase starting at {t_110_h:.2f} hours with temperature {T_110_actual:.2f}°C")
