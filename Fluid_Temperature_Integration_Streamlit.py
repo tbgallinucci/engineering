@@ -227,8 +227,8 @@ if st.button("Run Simulation"):
         st.write(f"⚡ **Total Power**: {calib_pump_power_kw * calib_num_pumps:.2f} kW")
 
     st.write(f"### System Info")
-    st.write(f"🛢️ **Selected Fluid**: {total_volume_m3}")
-    st.write(f"📦 **Total Fluid Volume**: {fluid_choice}")
+    st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
+    st.write(f"📦 **Total Fluid Volume**: {total_volume_m3} m³")
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
     st.write(f"⏱️ **Heating time**: {t_110_hours} h {t_110_minutes} min")
     
