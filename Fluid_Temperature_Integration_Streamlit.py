@@ -198,6 +198,41 @@ if st.button("Run Simulation"):
 
     st.write(f"📏 **Available Calibration Time after reaching Max Viscosity**: {hours} h {minutes} min")
 
+    # Add equilibrium temperature line
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', 
+                             name=f'Equilibrium Temp: {T_eq:.1f} °C', 
+                             line=dict(color='red', dash='dash')))
+
+    # Add 90% viscosity temperature line (horizontal)
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', 
+                             name=f'90% Viscosity Temp: {T_90:.1f} °C', 
+                             line=dict(color='green', dash='dot')))
+
+    # Add time to reach 90% viscosity (vertical, crossing whole plot)
+    fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
+                             name=f'Time to reach 90% Viscosity ≈ {t_90_h:.2f} h', 
+                             line=dict(color='green', dash='dot')))
+
+    # Add green dot at 90% viscosity
+    fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
+                             marker=dict(color='green', size=7), 
+                             name='90% Viscosity Point'))
+
+    # Add 110% viscosity temperature line (horizontal)
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_110, T_110], mode='lines', 
+                             name=f'110% Viscosity Temp: {T_110:.1f} °C', 
+                             line=dict(color='purple', dash='dot')))
+
+    # Add time to reach 110% viscosity (vertical, crossing whole plot)
+    fig.add_trace(go.Scatter(x=[t_110_h, t_110_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
+                             name=f'Time to reach 110% Viscosity ≈ {t_110_h:.2f} h', 
+                             line=dict(color='purple', dash='dot')))
+
+    # Add green dot at 110% viscosity
+    fig.add_trace(go.Scatter(x=[t_110_h], y=[T_110_actual], mode='markers', 
+                             marker=dict(color='purple', size=7), 
+                             name='110% Viscosity Point'))
+
     # Create plot of Temperature over time
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=time_heating_truncated/3600, y=Tf_heating_truncated, mode='lines', name='Heating Phase', line=dict(color='red')))
