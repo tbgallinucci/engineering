@@ -50,19 +50,14 @@ else:
     elif fluid_choice == "KRD MAX 55":
         viscosity_model = lambda Tf: -9e-08 * Tf**3 + 1e-05 * Tf**2 - 0.0007 * Tf + 0.0165
 
-# === Heating Phase Pump Data ===
-    st.header("Heating Phase Pump Data")
-    heating_pump_power_kw = st.number_input("Nominal power per pump (kW) for Heating Phase:", min_value=0.1, value=69.0)
-    heating_pump_flow_m3h = st.number_input("Flow rate per pump (m³/h) for Heating Phase:", min_value=0.1, value=550.0)
-    heating_pump_eff = st.number_input("Pump efficiency (%) for Heating Phase:", min_value=1.0, max_value=100.0, value=58.0)
-    heating_num_pumps = st.number_input("Number of pumps in Heating Phase:", min_value=1, step=1, value=1)
+# === Pump Data ===
 
-# === Calibration Phase Pump Data ===
-    st.header("Calibration Phase Pump Data")
-    calibration_pump_power_kw = st.number_input("Nominal power per pump (kW) for Calibration Phase:", min_value=0.1, value=69.0)
-    calibration_pump_flow_m3h = st.number_input("Flow rate per pump (m³/h) for Calibration Phase:", min_value=0.1, value=550.0)
-    calibration_pump_eff = st.number_input("Pump efficiency (%) for Calibration Phase:", min_value=1.0, max_value=100.0, value=58.0)
-    calibration_num_pumps = st.number_input("Number of pumps in Calibration Phase:", min_value=1, step=1, value=1)
+    st.header("Pump Data")
+    pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
+    pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
+    pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+    num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+
 
 # === Piping Data ===
 
@@ -84,34 +79,11 @@ else:
 t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
 
 # === Run Simulation ===
-# Heating Phase Pump Data
-heating_pump_heat_factor = 1.0  # assumed constant for heating phase
-heating_dWp_dt = heating_pump_power_kw * heating_pump_eff / 100 * heating_pump_heat_factor * 1000 * heating_num_pumps  # W
-heating_F = (heating_pump_flow_m3h / 3600) * heating_num_pumps  # m³/s
-
-# Calibration Phase Pump Data
-calibration_pump_heat_factor = 1.0  # assumed constant for calibration phase
-calibration_dWp_dt = calibration_pump_power_kw * calibration_pump_eff / 100 * calibration_pump_heat_factor * 1000 * calibration_num_pumps  # W
-calibration_F = (calibration_pump_flow_m3h / 3600) * calibration_num_pumps  # m³/s
-
- # Euler Simulation
-dt = 0.1
-t_max = t_max_h * 3600
-time = np.arange(0, t_max, dt)
-Tf = np.zeros_like(time)
-Tf[0] = T_ambient
-
-# Simulation: Switching between Heating and Calibration Phase
-for i in range(1, len(time)):
-    # Check if the system has reached max viscosity
-    if Tf[i-1] >= T_110:  # Assuming T_110 is the target temperature for max viscosity
-        # Use calibration phase data
-        dWp_dt = calibration_dWp_dt
-        F = calibration_F
-    else:
-        # Use heating phase data
-        dWp_dt = heating_dWp_dt
-        F = heating_F
+if st.button("Run Simulation"):
+    # Converted Values
+    pump_heat_factor = 1.0  # lost power to fluid
+    dWp_dt = pump_power_kw * pump_eff/100 * pump_heat_factor * 1000 * num_pumps  # W
+    F = (pump_flow_m3h / 3600) * num_pumps  # m³/s
 
     m = total_volume_m3 * rho  # kg
     k_pipe = 45  # W/m.K
@@ -127,6 +99,13 @@ for i in range(1, len(time)):
     outer_diameter = D_insul if use_insulation else D
     R_conv_out = 1 / (h_out * np.pi * outer_diameter * L)
 
+    # Euler Simulation
+    dt = 0.1
+    t_max = t_max_h * 3600
+    time = np.arange(0, t_max, dt)
+    Tf = np.zeros_like(time)
+    Tf[0] = T_ambient
+
     for i in range(1, len(time)):
         mu_t = viscosity_model(Tf[i-1])
         Re = (4 * F * rho) / (np.pi * d * mu_t)
@@ -138,13 +117,18 @@ for i in range(1, len(time)):
         R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
+        
+        # Check if max viscosity temperature is reached and switch to calibration phase
+        if Tf[i-1] >= T_110:
+            # Adjust model for calibration phase (after max_mu is reached)
+            mu_t = viscosity_model(Tf[i-1])
 
     T_eq = T_ambient + dWp_dt * R_total
     T_90 =  -21.7391 * np.log(min_mu / 0.1651)
     T_110 = -21.7391 * np.log(max_mu / 0.1651)
     T_target = -21.7391 * np.log(target_mu/1000 / 0.1651)
 
-        # Results Display
+    # Results Display
     mu_eq = viscosity_model(T_eq)
     mu_90 = viscosity_model(T_90)
     mu_110 = viscosity_model(T_110)
