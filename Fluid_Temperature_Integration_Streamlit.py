@@ -6,9 +6,6 @@ import plotly.graph_objects as go
 st.title("Pump Heat Simulation Tool")
 st.write("Enter your pump, fluid, piping, and insulation parameters below:")
 
-# === Layout Columns ===
-col1, col2 = st.columns(2)
-
 # === System Data ===
 st.header("System Data")
 total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
