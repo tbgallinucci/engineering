@@ -139,11 +139,11 @@ if st.button("Run Simulation"):
         T_target = -1 / 0.054 * np.log(target_mu / 1000 / 0.5933)
 
     elif fluid_choice == "KRD MAX 55":
-    # Inverse of polynomial needs to be solved numerically
-    def inverse_viscosity(mu_target):
-        from scipy.optimize import fsolve
-        func = lambda T: -9e-08 * T**3 + 1e-05 * T**2 - 0.0007 * T + 0.0165 - mu_target
-        return fsolve(func, x0=25)[0]  # initial guess of 25°C
+        # Inverse of polynomial needs to be solved numerically
+        def inverse_viscosity(mu_target):
+            from scipy.optimize import fsolve
+            func = lambda T: -9e-08 * T**3 + 1e-05 * T**2 - 0.0007 * T + 0.0165 - mu_target
+            return fsolve(func, x0=25)[0]  # initial guess of 25°C
 
     T_90 = inverse_viscosity(min_mu)
     T_110 = inverse_viscosity(max_mu)
