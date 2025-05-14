@@ -125,11 +125,6 @@ T_90 =  -21.7391 * np.log(min_mu / 0.1651)
 T_110 = -21.7391 * np.log(max_mu / 0.1651)
 T_target = -21.7391 * np.log(target_mu/1000 / 0.1651)
 
-    # Results Display
-mu_eq = viscosity_model(T_eq)
-mu_90 = viscosity_model(T_90)
-mu_110 = viscosity_model(T_110)
-
     # Find 90% time
 idx_90 = np.where(Tf >= T_90)[0]
 if len(idx_90) > 0:
@@ -176,8 +171,10 @@ for i in range(1, len(time)):
 
     T_eq = T_ambient + dWp_dt * R_total
 
-
-
+        # Results Display
+    mu_eq = viscosity_model(T_eq)
+    mu_90 = viscosity_model(T_90)
+    mu_110 = viscosity_model(T_110)
 
     st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
