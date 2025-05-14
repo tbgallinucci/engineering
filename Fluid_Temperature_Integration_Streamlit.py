@@ -139,11 +139,11 @@ if st.button("Run Simulation"):
 
 # Calibration Phase Simulation
 # Use conditions at t_110_h and T_110 for calibration phase
-if t_110_h is not None:
+    if t_110_h is not None:
     # Create the adjusted time array for the calibration phase starting from t_110_h
-    time_calib = np.arange(t_110_h * 3600, t_max, dt)  # Start from t_110_h in seconds
-    Tf_calib = np.zeros_like(time_calib)
-    Tf_calib[0] = T_110_actual  # Set the initial temperature for the calibration phase
+        time_calib = np.arange(t_110_h * 3600, t_max, dt)  # Start from t_110_h in seconds
+        Tf_calib = np.zeros_like(time_calib)
+        Tf_calib[0] = T_110_actual  # Set the initial temperature for the calibration phase
 
     # Use the calibration pump configuration for the simulation
     dWp_dt_calib = calib_pump_power_kw * calib_pump_eff/100 * pump_heat_factor * 1000 * calib_num_pumps  # W
