@@ -123,6 +123,15 @@ if st.button("Run Simulation"):
         t_90_h = None
         T_90_actual = None
 
+    # Find 110% time
+    idx_110 = np.where(Tf >= T_110)[0]
+    if len(idx_110) > 0:
+        t_110_h = time[idx_110[0]] / 3600
+        T_110_actual = Tf[idx_110[0]]
+    else:
+        t_110_h = None
+        T_110_actual = None
+
     st.success(f"Equilibrium Temperature: {T_eq:.1f} °C")
     st.info(f"90% of Equilibrium Temp: {T_90:.1f} °C")
 
@@ -147,21 +156,36 @@ if st.button("Run Simulation"):
                              name=f'Equilibrium Temp: {T_eq:.1f} °C', 
                              line=dict(color='red', dash='dash')))
 
-    # Add 90% equilibrium temperature line (horizontal)
+    # Add 90% viscosity temperature line (horizontal)
     fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', 
-                             name=f'90% Equilibrium Temp: {T_90:.1f} °C', 
+                             name=f'90% Viscosity Temp: {T_90:.1f} °C', 
                              line=dict(color='green', dash='dot')))
 
-    # Add time to reach 90% equilibrium line (vertical, crossing whole plot)
+    # Add time to reach 90% viscosity (vertical, crossing whole plot)
     fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
-                             name=f'Time to reach 90% equilibrium ≈ {t_90_h:.2f} h', 
+                             name=f'Time to reach 90% Viscosity ≈ {t_90_h:.2f} h', 
                              line=dict(color='green', dash='dot')))
 
-    # Add green dot at 90% equilibrium point
+    # Add green dot at 90% viscosity
     fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
                              marker=dict(color='green', size=7), 
-                             name='90% Equilibrium Point'))
+                             name='90% Viscosity Point'))
 
+    # Add 110% viscosity temperature line (horizontal)
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_110, T_110], mode='lines', 
+                             name=f110% Viscosity Temp: {T_110:.1f} °C', 
+                             line=dict(color='green', dash='dot')))
+
+    # Add time to reach 110% viscosity (vertical, crossing whole plot)
+    fig.add_trace(go.Scatter(x=[t_110_h, t_110_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
+                             name=f'Time to reach 110% Viscosity ≈ {t_90_h:.2f} h', 
+                             line=dict(color='green', dash='dot')))
+
+    # Add green dot at 110% viscosity
+    fig.add_trace(go.Scatter(x=[t_110_h], y=[T_110_actual], mode='markers', 
+                             marker=dict(color='green', size=7), 
+                             name='110% Viscosity Point'))
+    
     # Update layout
     fig.update_layout(
         title="Temperature Rise Over Time",
