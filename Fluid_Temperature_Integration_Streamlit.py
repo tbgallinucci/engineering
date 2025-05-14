@@ -209,7 +209,7 @@ if st.button("Run Simulation"):
     t_110_minutes = int((t_110_h - t_110_hours) * 60)
 
     # Display Results for Calibration Phase
-    st.write(f"Calibration Phase starting after {t_110_hours:.2f} hours an {t_110_minutes:.2f} minutes at temperature {T_110_actual:.2f}°C")
+    st.write(f"Calibration Phase starting after {t_110_hours:.0f}h{t_110_minutes:.0f}min at temperature {T_110_actual:.1f}°C")
 
     # Display Phase Configurations Side by Side
     col1, col2 = st.columns(2)
@@ -227,7 +227,8 @@ if st.button("Run Simulation"):
         st.write(f"⚡ **Total Power**: {calib_pump_power_kw * calib_num_pumps:.2f} kW")
 
     st.write(f"### System Info")
-    st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
+    st.write(f"🛢️ **Selected Fluid**: {total_volume_m3}")
+    st.write(f"📦 **Total Fluid Volume**: {fluid_choice}")
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
     st.write(f"⏱️ **Heating time**: {t_110_hours} h {t_110_minutes} min")
     
