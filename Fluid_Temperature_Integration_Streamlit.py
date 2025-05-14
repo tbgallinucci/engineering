@@ -145,11 +145,11 @@ if st.button("Run Simulation"):
             func = lambda T: -9e-08 * T**3 + 1e-05 * T**2 - 0.0007 * T + 0.0165 - mu_target
             return fsolve(func, x0=25)[0]  # initial guess of 25°C
 
-    T_90 = inverse_viscosity(min_mu)
-    T_110 = inverse_viscosity(max_mu)
-    T_target = inverse_viscosity(target_mu / 1000)
+        T_90 = inverse_viscosity(min_mu)
+        T_110 = inverse_viscosity(max_mu)
+        T_target = inverse_viscosity(target_mu / 1000)
     
-    #else:
+    else:
         T_90 = T_110 = T_target = None
 
     # Find 110% time
