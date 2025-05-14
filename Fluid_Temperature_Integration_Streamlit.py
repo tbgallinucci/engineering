@@ -11,6 +11,7 @@ st.header("System Data")
 total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
 T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
 target_mu = st.number_input("Target Viscosity (cP):", value=25.0)
+min_mu = target_mu*0.9
 
 # === Fluid Data ===
 st.header("Fluid Data")
@@ -103,7 +104,7 @@ if st.button("Run Simulation"):
         Tf[i] = Tf[i-1] + dT_dt * dt
 
     T_eq = T_ambient + dWp_dt * R_total
-    T_90 =  0.9 * T_eq
+    T_90 =  -21.7391 * np.log(mu_min / 0.1651)
 
         # Results Display
     mu_eq = viscosity_model(T_eq)
