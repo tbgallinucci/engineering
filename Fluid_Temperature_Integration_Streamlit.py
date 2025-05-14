@@ -148,8 +148,9 @@ if st.button("Run Simulation"):
     T_90 = inverse_viscosity(min_mu)
     T_110 = inverse_viscosity(max_mu)
     T_target = inverse_viscosity(target_mu / 1000)
-else:
-    T_90 = T_110 = T_target = None
+    
+    else:
+        T_90 = T_110 = T_target = None
 
     # Find 110% time
     idx_110 = np.where(Tf >= T_110)[0]
