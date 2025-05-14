@@ -26,20 +26,20 @@ if use_manual_input:
     viscosity_model = lambda Tf: mu_constant
 else:
     fluid_choice = st.selectbox("Select fluid from library:", [
-    "KRD MAX 225",
-    "KRD MAX 2205",
-    "KRD MAX 685",
-    "KRD MAX 55"
-])
+        "KRD MAX 225",
+        "KRD MAX 2205",
+        "KRD MAX 685",
+        "KRD MAX 55"
+    ])
     
     # Fluid properties
-rho = 850.0  # kg/m³
-cp_fluid = 2000.0  # J/kg·K
-k_fluid = 0.12  # W/m·K
+    rho = 850.0  # kg/m³
+    cp_fluid = 2000.0  # J/kg·K
+    k_fluid = 0.12  # W/m·K
 
 # viscosity models by fluid
-if fluid_choice == "KRD MAX 225":
-    viscosity_model = lambda Tf: 0.1651 * np.exp(-0.046 * Tf)
+    if fluid_choice == "KRD MAX 225":
+        viscosity_model = lambda Tf: 0.1651 * np.exp(-0.046 * Tf)
 
     elif fluid_choice == "KRD MAX 2205":
         viscosity_model = lambda Tf: 1.9133 * np.exp(-0.053 * Tf)
@@ -49,7 +49,6 @@ if fluid_choice == "KRD MAX 225":
 
     elif fluid_choice == "KRD MAX 55":
         viscosity_model = lambda Tf: -9e-08 * Tf**3 + 1e-05 * Tf**2 - 0.0007 * Tf + 0.0165
-
 
 # === Pump Data ===
 
