@@ -186,16 +186,20 @@ if st.button("Run Simulation"):
     # Display Results for Calibration Phase
     st.write(f"Calibration Phase starting after {t_110_hours:.2f} hours an {t_110_minutes:.2f} minutes at temperature {T_110_actual:.2f}°C")
 
-    # Display Results for Heating and Calibration Phases
-    st.write(f"### Heating Phase Configuration")
-    st.write(f"💧 **Total Flow Rate (Heating Phase)**: {pump_flow_m3h * num_pumps:.2f} m³/h")
-    st.write(f"🔋 **Number of Pumps (Heating Phase)**: {num_pumps}")
-    st.write(f"⚡ **Total Power (Heating Phase)**: {pump_power_kw * num_pumps:.2f} kW")
+    # Display Phase Configurations Side by Side
+    col1, col2 = st.columns(2)
 
-    st.write(f"### Calibration Phase Configuration")
-    st.write(f"💧 **Total Flow Rate (Calibration Phase)**: {calib_pump_flow_m3h * calib_num_pumps:.2f} m³/h")
-    st.write(f"🔋 **Number of Pumps (Calibration Phase)**: {calib_num_pumps}")
-    st.write(f"⚡ **Total Power (Calibration Phase)**: {calib_pump_power_kw * calib_num_pumps:.2f} kW")
+    with col1:
+        st.markdown("### 🔥 Heating Phase Configuration")
+        st.write(f"💧 **Total Flow Rate**: {pump_flow_m3h * num_pumps:.2f} m³/h")
+        st.write(f"🔋 **Number of Pumps**: {num_pumps}")
+        st.write(f"⚡ **Total Power**: {pump_power_kw * num_pumps:.2f} kW")
+
+    with col2:
+        st.markdown("### 🧪 Calibration Phase Configuration")
+        st.write(f"💧 **Total Flow Rate**: {calib_pump_flow_m3h * calib_num_pumps:.2f} m³/h")
+        st.write(f"🔋 **Number of Pumps**: {calib_num_pumps}")
+        st.write(f"⚡ **Total Power**: {calib_pump_power_kw * calib_num_pumps:.2f} kW")
 
     st.write(f"### System Info")
     st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
