@@ -199,6 +199,12 @@ if st.button("Run Simulation"):
 
     st.write(f"📏 **Available Calibration Time after reaching Max Viscosity**: {hours} h {minutes} min")
 
+    # Create plot of Temperature over time
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=time_heating_truncated/3600, y=Tf_heating_truncated, mode='lines', name='Heating Phase', line=dict(color='red')))
+    fig.add_trace(go.Scatter(x=time_calib/3600, y=Tf_calib, mode='lines', name='Calibration Phase', line=dict(color='blue')))
+    fig.update_layout(title="Temperature vs Time", xaxis_title="Time (hours)", yaxis_title="Temperature (°C)")
+
     # Add equilibrium temperature line
     fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', 
                              name=f'Equilibrium Temp: {T_eq:.1f} °C', 
@@ -233,12 +239,7 @@ if st.button("Run Simulation"):
     fig.add_trace(go.Scatter(x=[t_110_h], y=[T_110_actual], mode='markers', 
                              marker=dict(color='purple', size=7), 
                              name='110% Viscosity Point'))
-
-    # Create plot of Temperature over time
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=time_heating_truncated/3600, y=Tf_heating_truncated, mode='lines', name='Heating Phase', line=dict(color='red')))
-    fig.add_trace(go.Scatter(x=time_calib/3600, y=Tf_calib, mode='lines', name='Calibration Phase', line=dict(color='blue')))
-    fig.update_layout(title="Temperature vs Time", xaxis_title="Time (hours)", yaxis_title="Temperature (°C)")
+    
     st.plotly_chart(fig)
 
 else:
