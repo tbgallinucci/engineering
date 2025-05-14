@@ -150,7 +150,11 @@ if st.button("Run Simulation"):
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
     st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
     st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
-    st.write(f"⏱️ **Time to Max Viscosity**: {t_110_h:.2f} h")
+    # Convert t_110_h to hours and minutes
+    t_110_hours = int(t_110_h)
+    t_110_minutes = int((t_110_h - t_110_hours) * 60)
+
+    st.write(f"⏱️ **Time to Max Viscosity**: {t_110_hours} h {t_110_minutes} min")
     # Calculate the time difference in hours
     calibration_time_h = t_90_h - t_110_h
 
