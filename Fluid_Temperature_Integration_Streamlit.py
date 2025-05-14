@@ -6,6 +6,9 @@ import plotly.graph_objects as go
 st.title("Pump Heat Simulation Tool")
 st.write("Enter your pump, fluid, piping, and insulation parameters below:")
 
+# === Layout Columns ===
+col1, col2 = st.columns(2)
+
 # === System Data ===
 st.header("System Data")
 total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
@@ -34,6 +37,7 @@ else:
             return 0.1651 * np.exp(-0.046 * Tf)
 
 # === Pump Data ===
+with col2:
     st.header("Pump Data")
     pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=40.0)
     pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
@@ -43,7 +47,9 @@ else:
 
 # === Piping Data ===
 st.header("Piping Data")
+col3, col4 = st.columns(2)
 
+with col3:
     d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
     D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
     L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
