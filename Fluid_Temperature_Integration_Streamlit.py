@@ -52,11 +52,17 @@ else:
 
 # === Pump Data ===
 
-    st.header("Pump Data")
+    st.header("Heating Phase Pump Config")
     pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
     pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
     pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
     num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+
+    st.header("Calibration Phase Pump Config")
+    calib_pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
+    calib_pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
+    calib_pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+    calib_num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
 
 
 # === Piping Data ===
@@ -106,17 +112,40 @@ if st.button("Run Simulation"):
     Tf = np.zeros_like(time)
     Tf[0] = T_ambient
 
-    for i in range(1, len(time)):
-        mu_t = viscosity_model(Tf[i-1])
-        Re = (4 * F * rho) / (np.pi * d * mu_t)
-        Pr = (mu_t * cp_fluid) / k_fluid
-        Nu = 0.023 * Re**0.8 * Pr**n
-        h_in = Nu * k_fluid / d
-        R_conv_in = 1 / (h_in * np.pi * d * L)
+# Separate heating and calibration pump data
+dWp_dt_heating = pump_power_kw * pump_eff / 100 * 1000 * num_pumps  # W
+F_heating = (pump_flow_m3h / 3600) * num_pumps  # m³/s
 
-        R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
-        dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
-        Tf[i] = Tf[i-1] + dT_dt * dt
+dWp_dt_calib = calib_pump_power_kw * calib_pump_eff / 100 * 1000 * calib_num_pumps  # W
+F_calib = (calib_pump_flow_m3h / 3600) * calib_num_pumps  # m³/s
+
+reached_T_110 = False
+
+for i in range(1, len(time)):
+    T_prev = Tf[i-1]
+    
+    # Determine which phase we're in
+    if not reached_T_110 and T_prev >= T_110:
+        reached_T_110 = True
+
+    if reached_T_110:
+        dWp_dt = dWp_dt_calib
+        F = F_calib
+    else:
+        dWp_dt = dWp_dt_heating
+        F = F_heating
+
+    mu_t = viscosity_model(T_prev)
+    Re = (4 * F * rho) / (np.pi * d * mu_t)
+    Pr = (mu_t * cp_fluid) / k_fluid
+    Nu = 0.023 * Re**0.8 * Pr**n
+    h_in = Nu * k_fluid / d
+    R_conv_in = 1 / (h_in * np.pi * d * L)
+
+    R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
+    dT_dt = (dWp_dt - (T_prev - T_ambient) / R_total) / (m * cp_fluid)
+    Tf[i] = T_prev + dT_dt * dt
+
 
     T_eq = T_ambient + dWp_dt * R_total
     T_90 =  -21.7391 * np.log(min_mu / 0.1651)
