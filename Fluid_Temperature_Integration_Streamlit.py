@@ -94,12 +94,12 @@ calibration_pump_heat_factor = 1.0  # assumed constant for calibration phase
 calibration_dWp_dt = calibration_pump_power_kw * calibration_pump_eff / 100 * calibration_pump_heat_factor * 1000 * calibration_num_pumps  # W
 calibration_F = (calibration_pump_flow_m3h / 3600) * calibration_num_pumps  # m³/s
 
-    # Euler Simulation
-    dt = 0.1
-    t_max = t_max_h * 3600
-    time = np.arange(0, t_max, dt)
-    Tf = np.zeros_like(time)
-    Tf[0] = T_ambient
+ # Euler Simulation
+dt = 0.1
+t_max = t_max_h * 3600
+time = np.arange(0, t_max, dt)
+Tf = np.zeros_like(time)
+Tf[0] = T_ambient
 
 # Simulation: Switching between Heating and Calibration Phase
 for i in range(1, len(time)):
