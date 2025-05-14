@@ -154,7 +154,7 @@ if st.button("Run Simulation"):
         R_conv_in_calib = 1 / (h_in_calib * np.pi * d * L)
 
         R_total_calib = R_conv_in_calib + R_cond_pipe + R_cond_insul + R_conv_out
-         dT_dt_calib = (dWp_dt_calib - (Tf_calib[i-1] - T_ambient) / R_total_calib) / (m * cp_fluid)
+        dT_dt_calib = (dWp_dt_calib - (Tf_calib[i-1] - T_ambient) / R_total_calib) / (m * cp_fluid)
         Tf_calib[i] = Tf_calib[i-1] + dT_dt_calib * dt
 
     # Display Results
