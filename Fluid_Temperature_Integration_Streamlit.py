@@ -138,6 +138,7 @@ if st.button("Run Simulation"):
     if t_90_h is not None:
         st.info(f"Time to reach 90% equilibrium: ≈ {t_90_h:.2f} h")
 
+    st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
     st.write(f"🛢️ **Viscosity at T_eq ({T_eq:.1f} °C)**: {mu_eq*1000:.2f} cP")
     st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
     st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
@@ -147,7 +148,7 @@ if st.button("Run Simulation"):
     # Interactive Plot using Plotly
     fig = go.Figure()
 
-    label_text = f"""{num_pumps} Pump(s), {pump_power_kw*num_pumps:.1f} kW, {pump_flow_m3h*num_pumps:.1f} m³/h\nTotal Fluid Volume = {total_volume_m3:.1f} m³"""
+    label_text = f"""{fluid_choice} - {num_pumps} Pump(s), {pump_power_kw*num_pumps:.1f} kW, {pump_flow_m3h*num_pumps:.1f} m³/h\nTotal Fluid Volume = {total_volume_m3:.1f} m³"""
 
     # Add the temperature over time curve
     fig.add_trace(go.Scatter(x=time / 3600, y=Tf, mode='lines', name=label_text))
