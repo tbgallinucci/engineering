@@ -8,7 +8,7 @@ st.write("Enter your pump, fluid, piping, and insulation parameters below:")
 
 # === System Data ===
 st.header("System Data")
-total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
+total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=10.0)
 T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
 target_mu = st.number_input("Target Viscosity (cP):", value=25.0)
 max_mu = target_mu*1.1/1000
