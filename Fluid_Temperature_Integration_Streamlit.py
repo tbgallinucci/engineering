@@ -128,9 +128,9 @@ if st.button("Run Simulation"):
     if t_90_h is not None:
         st.info(f"Time to reach 90% equilibrium: ≈ {t_90_h:.2f} h")
 
-    st.write(f"🛢️ **Viscosity at T_eq ({T_eq:.1f} °C)**: {mu_eq*1000:.2f} cP")
-    st.write(f"🛢️ **Viscosity at 90% T_eq ({T_90:.1f} °C)**: {mu_90*1000:.2f} cP")
-
+st.write(f"🛢️ **Viscosity at T_eq ({T_eq:.1f} °C)**: {mu_eq*1000:.2f} cP")
+st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
+st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
 
     # Interactive Plot using Plotly
     fig = go.Figure()
