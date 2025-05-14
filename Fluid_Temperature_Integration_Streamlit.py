@@ -78,20 +78,12 @@ if st.button("Run Simulation"):
     h_out = 25  # W/m2.K
     n = 0.33
 
-  # Thermal Resistances
-    # Compute viscosity at ambient temperature for initial Reynolds number
+    # Thermal Resistances
     mu = viscosity_model(T_ambient)
     Re = (4 * F * rho) / (np.pi * d * mu)
-    # Internal convection
-    R_conv_in = 1 / (0.023 * k_fluid * (4 * F * rho / (np.pi * d * mu))**0.8 * (mu * cp_fluid / k_fluid)**n * np.pi * L)
-    # Pipe conduction
+    R_conv_in = 1 / (0.023 * k_fluid * Re**0.8 * (mu * cp_fluid / k_fluid)**n * np.pi * L)
     R_cond_pipe = np.log(D / d) / (2 * np.pi * k_pipe * L)
-    # Insulation conduction
-    if use_insulation:
-        R_cond_insul = np.log(D_insul / D) / (2 * np.pi * k_insul * L)
-    else:
-        R_cond_insul = 0
-    # External convection
+    R_cond_insul = np.log(D_insul / D) / (2 * np.pi * k_insul * L) if use_insulation else 0
     outer_diameter = D_insul if use_insulation else D
     R_conv_out = 1 / (h_out * np.pi * outer_diameter * L)
 
@@ -102,7 +94,7 @@ if st.button("Run Simulation"):
     Tf = np.zeros_like(time)
     Tf[0] = T_ambient
 
-for i in range(1, len(time)):
+    for i in range(1, len(time)):
         mu_t = viscosity_model(Tf[i-1])
         Re = (4 * F * rho) / (np.pi * d * mu_t)
         Pr = (mu_t * cp_fluid) / k_fluid
@@ -114,7 +106,6 @@ for i in range(1, len(time)):
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
 
-    # Equilibrium temps
     T_eq = T_ambient + dWp_dt * R_total
     T_90 =  0.9 * T_eq
 
