@@ -137,15 +137,20 @@ if st.button("Run Simulation"):
         t_110_h = None
         T_110_actual = None
 
-    # Calibration Phase Simulation
-    # Use conditions at t_110_h and T_110 for calibration phase
+# Calibration Phase Simulation
+# Use conditions at t_110_h and T_110 for calibration phase
+if t_110_h is not None:
+    # Create the adjusted time array for the calibration phase starting from t_110_h
+    time_calib = np.arange(t_110_h * 3600, t_max, dt)  # Start from t_110_h in seconds
+    Tf_calib = np.zeros_like(time_calib)
+    Tf_calib[0] = T_110_actual  # Set the initial temperature for the calibration phase
+
+    # Use the calibration pump configuration for the simulation
     dWp_dt_calib = calib_pump_power_kw * calib_pump_eff/100 * pump_heat_factor * 1000 * calib_num_pumps  # W
     F_calib = (calib_pump_flow_m3h / 3600) * calib_num_pumps  # m³/s
 
-    Tf_calib = np.zeros_like(time)
-    Tf_calib[0] = T_110_actual
-
-    for i in range(1, len(time)):
+    # Run the simulation for the calibration phase
+    for i in range(1, len(time_calib)):
         mu_t_calib = viscosity_model(Tf_calib[i-1])
         Re_calib = (4 * F_calib * rho) / (np.pi * d * mu_t_calib)
         Pr_calib = (mu_t_calib * cp_fluid) / k_fluid
@@ -157,18 +162,18 @@ if st.button("Run Simulation"):
         dT_dt_calib = (dWp_dt_calib - (Tf_calib[i-1] - T_ambient) / R_total_calib) / (m * cp_fluid)
         Tf_calib[i] = Tf_calib[i-1] + dT_dt_calib * dt
 
-    # Display Results
-    if T_110_actual is not None:
-        st.write(f"Heating Phase reached {T_110_actual:.2f}°C after {t_110_h:.2f} hours")
-    else:
-        st.write("Heating Phase did not reach the target temperature within the specified time.")
+    # Display Results for Calibration Phase
+    st.write(f"Calibration Phase started at {t_110_h:.2f} hours with temperature {T_110_actual:.2f}°C")
 
     # Create plot of Temperature over time
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=time/3600, y=Tf, mode='lines', name='Heating Phase'))
-    fig.add_trace(go.Scatter(x=time/3600, y=Tf_calib, mode='lines', name='Calibration Phase'))
+    fig.add_trace(go.Scatter(x=time_calib/3600, y=Tf_calib, mode='lines', name='Calibration Phase'))
     fig.update_layout(title="Temperature vs Time", xaxis_title="Time (hours)", yaxis_title="Temperature (°C)")
     st.plotly_chart(fig)
+
+else:
+    st.write("Heating Phase did not reach the target temperature within the specified time.")
 
 
 
