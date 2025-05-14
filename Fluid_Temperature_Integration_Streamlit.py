@@ -123,9 +123,33 @@ if st.button("Run Simulation"):
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
 
-    T_90 =  -21.7391 * np.log(min_mu / 0.1651)
-    T_110 = -21.7391 * np.log(max_mu / 0.1651)
-    T_target = -21.7391 * np.log(target_mu/1000 / 0.1651)
+    if fluid_choice == "KRD MAX 225":
+    T_90 =  -1 / 0.046 * np.log(min_mu / 0.1651)
+    T_110 = -1 / 0.046 * np.log(max_mu / 0.1651)
+    T_target = -1 / 0.046 * np.log(target_mu / 1000 / 0.1651)
+
+    elif fluid_choice == "KRD MAX 2205":
+    T_90 =  -1 / 0.053 * np.log(min_mu / 1.9133)
+    T_110 = -1 / 0.053 * np.log(max_mu / 1.9133)
+    T_target = -1 / 0.053 * np.log(target_mu / 1000 / 1.9133)
+
+    elif fluid_choice == "KRD MAX 685":
+    T_90 =  -1 / 0.054 * np.log(min_mu / 0.5933)
+    T_110 = -1 / 0.054 * np.log(max_mu / 0.5933)
+    T_target = -1 / 0.054 * np.log(target_mu / 1000 / 0.5933)
+
+    elif fluid_choice == "KRD MAX 55":
+    # Inverse of polynomial needs to be solved numerically
+    def inverse_viscosity(mu_target):
+        from scipy.optimize import fsolve
+        func = lambda T: -9e-08 * T**3 + 1e-05 * T**2 - 0.0007 * T + 0.0165 - mu_target
+        return fsolve(func, x0=25)[0]  # initial guess of 25°C
+
+    T_90 = inverse_viscosity(min_mu)
+    T_110 = inverse_viscosity(max_mu)
+    T_target = inverse_viscosity(target_mu / 1000)
+else:
+    T_90 = T_110 = T_target = None
 
     # Find 110% time
     idx_110 = np.where(Tf >= T_110)[0]
