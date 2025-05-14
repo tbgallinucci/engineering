@@ -282,8 +282,8 @@ else:
     
     st.plotly_chart(fig)
 
-else:
-    st.write("Heating Phase did not reach the target temperature within the specified time.")
+    else:
+        st.write("Heating Phase did not reach the target temperature within the specified time.")
 
 
 
