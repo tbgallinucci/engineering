@@ -104,7 +104,7 @@ if st.button("Run Simulation"):
         Tf[i] = Tf[i-1] + dT_dt * dt
 
     T_eq = T_ambient + dWp_dt * R_total
-    T_90 =  -21.7391 * np.log(mu_min / 0.1651)
+    T_90 =  -21.7391 * np.log(min_mu / 0.1651)
 
         # Results Display
     mu_eq = viscosity_model(T_eq)
