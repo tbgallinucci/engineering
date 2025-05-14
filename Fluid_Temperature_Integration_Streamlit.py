@@ -179,17 +179,28 @@ if st.button("Run Simulation"):
     R_total_calib = R_conv_in_calib + R_cond_pipe + R_cond_insul + R_conv_out
     T_eq = T_ambient + dWp_dt_calib * R_total_calib
 
+    # Convert t_110_h to hours and minutes
+    t_110_hours = int(t_110_h)
+    t_110_minutes = int((t_110_h - t_110_hours) * 60)
+
     # Display Results for Calibration Phase
-    st.write(f"Calibration Phase starting at {t_110_h:.2f} hours with temperature {T_110_actual:.2f}°C")
+    st.write(f"Calibration Phase starting after {t_110_hours:.2f} hours an {t_110_minutes:.2f} minutes at temperature {T_110_actual:.2f}°C")
+
+    # Display Results for Heating and Calibration Phases
+    st.write(f"### Heating Phase Configuration")
+    st.write(f"💧 **Total Flow Rate (Heating Phase)**: {pump_flow_m3h * num_pumps:.2f} m³/h")
+    st.write(f"🔋 **Number of Pumps (Heating Phase)**: {num_pumps}")
+    st.write(f"⚡ **Total Power (Heating Phase)**: {pump_power_kw * num_pumps:.2f} kW")
+
+    st.write(f"### Calibration Phase Configuration")
+    st.write(f"💧 **Total Flow Rate (Calibration Phase)**: {calib_pump_flow_m3h * calib_num_pumps:.2f} m³/h")
+    st.write(f"🔋 **Number of Pumps (Calibration Phase)**: {calib_num_pumps}")
+    st.write(f"⚡ **Total Power (Calibration Phase)**: {calib_pump_power_kw * calib_num_pumps:.2f} kW")
 
     st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
     st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
     st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
-
-    # Convert t_110_h to hours and minutes
-    t_110_hours = int(t_110_h)
-    t_110_minutes = int((t_110_h - t_110_hours) * 60)
 
     st.write(f"⏱️ **Time to Max Viscosity**: {t_110_hours} h {t_110_minutes} min")
     # Calculate the time difference in hours
