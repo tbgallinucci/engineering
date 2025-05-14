@@ -129,13 +129,13 @@ if st.button("Run Simulation"):
     T_target = -21.7391 * np.log(target_mu/1000 / 0.1651)
 
     # Find 110% time
-idx_110 = np.where(Tf >= T_110)[0]
-if len(idx_110) > 0:
-    t_110_h = time[idx_110[0]] / 3600  # Convert seconds to hours
-    T_110_actual = Tf[idx_110[0]]
-else:
-    t_110_h = None
-    T_110_actual = None
+    idx_110 = np.where(Tf >= T_110)[0]
+    if len(idx_110) > 0:
+        t_110_h = time[idx_110[0]] / 3600  # Convert seconds to hours
+        T_110_actual = Tf[idx_110[0]]
+    else:
+        t_110_h = None
+        T_110_actual = None
 
 # Calibration Phase Simulation
 # Use conditions at t_110_h and T_110 for calibration phase
