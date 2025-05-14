@@ -132,9 +132,6 @@ if st.button("Run Simulation"):
         t_110_h = None
         T_110_actual = None
 
-    st.success(f"Equilibrium Temperature: {T_eq:.1f} °C")
-    st.info(f"90% of Equilibrium Temp: {T_90:.1f} °C")
-
     if t_90_h is not None:
         st.info(f"Time to reach 90% equilibrium: ≈ {t_90_h:.2f} h")
 
