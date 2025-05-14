@@ -184,6 +184,20 @@ if st.button("Run Simulation"):
     st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
     st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
 
+    # Convert t_110_h to hours and minutes
+    t_110_hours = int(t_110_h)
+    t_110_minutes = int((t_110_h - t_110_hours) * 60)
+
+    st.write(f"⏱️ **Time to Max Viscosity**: {t_110_hours} h {t_110_minutes} min")
+    # Calculate the time difference in hours
+    calibration_time_h = t_90_h - t_110_h
+
+    # Convert to full hours and minutes
+    hours = int(calibration_time_h)
+    minutes = int((calibration_time_h - hours) * 60)
+
+    st.write(f"📏 **Available Calibration Time after reaching Max Viscosity**: {hours} h {minutes} min")
+
     # Create plot of Temperature over time
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=time_heating_truncated/3600, y=Tf_heating_truncated, mode='lines', name='Heating Phase', line=dict(color='red')))
