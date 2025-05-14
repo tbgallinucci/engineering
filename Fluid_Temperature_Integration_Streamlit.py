@@ -107,6 +107,7 @@ if st.button("Run Simulation"):
     T_eq = T_ambient + dWp_dt * R_total
     T_90 =  -21.7391 * np.log(min_mu / 0.1651)
     T_110 = -21.7391 * np.log(max_mu / 0.1651)
+    T_target = -21.7391 * np.log(target_mu / 0.1651)
 
         # Results Display
     mu_eq = viscosity_model(T_eq)
@@ -131,6 +132,7 @@ if st.button("Run Simulation"):
     st.write(f"🛢️ **Viscosity at T_eq ({T_eq:.1f} °C)**: {mu_eq*1000:.2f} cP")
     st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
     st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
+    st.write(f"🎯 **Temperature for Target Viscosity ({target_mu:.2f} cP)**: {T_target:.1f} °C")
 
     # Interactive Plot using Plotly
     fig = go.Figure()
