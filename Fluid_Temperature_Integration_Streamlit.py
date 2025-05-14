@@ -13,6 +13,7 @@ col1, col2 = st.columns(2)
 st.header("System Data")
 total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
 T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
+target_mu = st.number_input("Target Viscosity (cP):", value=25.0)
 
 # === Fluid Data ===
 st.header("Fluid Data")
