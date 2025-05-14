@@ -9,15 +9,32 @@ st.write("Enter your pump, fluid, piping, and insulation parameters below:")
 # === Layout Columns ===
 col1, col2 = st.columns(2)
 
+# === System Data ===
+st.header("System Data")
+total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
+T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
+
 # === Fluid Data ===
-with col1:
-    st.header("Fluid Data")
-    total_volume_m3 = st.number_input("Total fluid volume in system (m³):", min_value=0.1, value=5.0)
+st.header("Fluid Data")
+use_manual_input = st.checkbox("Manually input fluid properties")
+
+if use_manual_input:
     rho = st.number_input("Fluid density (kg/m³):", min_value=100.0, value=850.0)
-    cp_fluid = st.number_input("Fluid specific heat capacity (J/kg.K):", min_value=0.1, value=2000.0) 
-    T_ambient = st.number_input("Ambient temperature (°C):", value=25.0)
+    cp_fluid = st.number_input("Fluid specific heat capacity (J/kg·K):", min_value=0.1, value=2000.0) 
     k_fluid = st.number_input("Fluid thermal conductivity (W/m·K):", min_value=0.01, value=0.12)
-    mu = st.number_input("Fluid dynamic viscosity (Pa·s):", min_value=0.01, value=0.3)
+    mu_constant = st.number_input("Fluid dynamic viscosity (Pa·s):", min_value=0.001, value=0.3)
+    viscosity_model = lambda Tf: mu_constant
+else:
+    fluid_choice = st.selectbox("Select fluid from library:", ["KRD MAX 225"])
+    
+    if fluid_choice == "KRD MAX 225":
+        rho = 850.0  # kg/m³
+        cp_fluid = 2000.0  # J/kg·K
+        k_fluid = 0.12  # W/m·K
+
+        # viscosity in Pa·s
+        def viscosity_model(Tf):
+            return 0.1651 * np.exp(-0.046 * Tf)
 
 # === Pump Data ===
 with col2:
@@ -61,7 +78,10 @@ if st.button("Run Simulation"):
     h_out = 25  # W/m2.K
     n = 0.33
 
-    # Thermal Resistances
+  # Thermal Resistances
+    # Compute viscosity at ambient temperature for initial Reynolds number
+    mu = viscosity_model(T_ambient)
+    Re = (4 * F * rho) / (np.pi * d * mu)
     # Internal convection
     R_conv_in = 1 / (0.023 * k_fluid * (4 * F * rho / (np.pi * d * mu))**0.8 * (mu * cp_fluid / k_fluid)**n * np.pi * L)
     # Pipe conduction
@@ -75,13 +95,6 @@ if st.button("Run Simulation"):
     outer_diameter = D_insul if use_insulation else D
     R_conv_out = 1 / (h_out * np.pi * outer_diameter * L)
 
-    # Total resistance
-    R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
-
-    # Equilibrium temps
-    T_eq = T_ambient + dWp_dt * R_total
-    T_90 =  0.9 * T_eq
-
     # Euler Simulation
     dt = 0.1
     t_max = t_max_h * 3600
@@ -89,9 +102,21 @@ if st.button("Run Simulation"):
     Tf = np.zeros_like(time)
     Tf[0] = T_ambient
 
-    for i in range(1, len(time)):
+for i in range(1, len(time)):
+        mu_t = viscosity_model(Tf[i-1])
+        Re = (4 * F * rho) / (np.pi * d * mu_t)
+        Pr = (mu_t * cp_fluid) / k_fluid
+        Nu = 0.023 * Re**0.8 * Pr**n
+        h_in = Nu * k_fluid / d
+        R_conv_in = 1 / (h_in * np.pi * d * L)
+
+        R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
+
+    # Equilibrium temps
+    T_eq = T_ambient + dWp_dt * R_total
+    T_90 =  0.9 * T_eq
 
     # Find 90% time
     idx_90 = np.where(Tf >= T_90)[0]
@@ -103,10 +128,18 @@ if st.button("Run Simulation"):
         T_90_actual = None
 
     # Results Display
+    mu_eq = viscosity_model(T_eq)
+    mu_90 = viscosity_model(T_90)
+
     st.success(f"Equilibrium Temperature: {T_eq:.1f} °C")
     st.info(f"90% of Equilibrium Temp: {T_90:.1f} °C")
+
     if t_90_h is not None:
         st.info(f"Time to reach 90% equilibrium: ≈ {t_90_h:.2f} h")
+
+    st.write(f"🛢️ **Viscosity at T_eq ({T_eq:.1f} °C)**: {mu_eq*1000:.2f} cP")
+    st.write(f"🛢️ **Viscosity at 90% T_eq ({T_90:.1f} °C)**: {mu_90*1000:.2f} cP")
+
 
     # Interactive Plot using Plotly
     fig = go.Figure()
