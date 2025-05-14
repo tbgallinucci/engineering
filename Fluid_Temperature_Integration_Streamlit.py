@@ -197,20 +197,19 @@ if st.button("Run Simulation"):
     st.write(f"🔋 **Number of Pumps (Calibration Phase)**: {calib_num_pumps}")
     st.write(f"⚡ **Total Power (Calibration Phase)**: {calib_pump_power_kw * calib_num_pumps:.2f} kW")
 
+    st.write(f"### System Info")
     st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
-    st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
-    st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
-
-    st.write(f"⏱️ **Time to Max Viscosity**: {t_110_hours} h {t_110_minutes} min")
+    st.write(f"⏱️ **Heating time**: {t_110_hours} h {t_110_minutes} min")
+    
     # Calculate the time difference in hours
     calibration_time_h = t_90_h - t_110_h
-
+    
     # Convert to full hours and minutes
     hours = int(calibration_time_h)
     minutes = int((calibration_time_h - hours) * 60)
-
-    st.write(f"📏 **Available Calibration Time after reaching Max Viscosity**: {hours} h {minutes} min")
+    
+    st.write(f"📏 **Available Calibration Time Window**: {hours} h {minutes} min")
 
     # Create plot of Temperature over time
     fig = go.Figure()
