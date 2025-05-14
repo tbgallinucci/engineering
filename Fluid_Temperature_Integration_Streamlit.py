@@ -121,9 +121,9 @@ F_calib = (calib_pump_flow_m3h / 3600) * calib_num_pumps  # m³/s
 
 reached_T_110 = False
 
-    T_90 =  -21.7391 * np.log(min_mu / 0.1651)
-    T_110 = -21.7391 * np.log(max_mu / 0.1651)
-    T_target = -21.7391 * np.log(target_mu/1000 / 0.1651)
+T_90 =  -21.7391 * np.log(min_mu / 0.1651)
+T_110 = -21.7391 * np.log(max_mu / 0.1651)
+T_target = -21.7391 * np.log(target_mu/1000 / 0.1651)
 
 for i in range(1, len(time)):
     T_prev = Tf[i-1]
