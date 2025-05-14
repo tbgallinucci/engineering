@@ -139,20 +139,20 @@ if st.button("Run Simulation"):
 
 # Calibration Phase Simulation
 # Use conditions at t_110_h and T_110 for calibration phase
-if t_110_h is not None:
-    # Truncate the heating phase data at t_110_h
-    idx_110_heating = np.where(time <= t_110_h * 3600)[0]  # Find all indices where time <= t_110_h
-    time_heating_truncated = time[idx_110_heating]  # Truncated time array for heating phase
-    Tf_heating_truncated = Tf[idx_110_heating]  # Truncated temperature array for heating phase
+    if t_110_h is not None:
+        # Truncate the heating phase data at t_110_h
+        idx_110_heating = np.where(time <= t_110_h * 3600)[0]  # Find all indices where time <= t_110_h
+        time_heating_truncated = time[idx_110_heating]  # Truncated time array for heating phase
+        Tf_heating_truncated = Tf[idx_110_heating]  # Truncated temperature array for heating phase
 
-    # Create the adjusted time array for the calibration phase starting from t_110_h
-    time_calib = np.arange(t_110_h * 3600, t_max, dt)  # Start from t_110_h in seconds
-    Tf_calib = np.zeros_like(time_calib)
-    Tf_calib[0] = T_110_actual  # Set the initial temperature for the calibration phase
+        # Create the adjusted time array for the calibration phase starting from t_110_h
+        time_calib = np.arange(t_110_h * 3600, t_max, dt)  # Start from t_110_h in seconds
+        Tf_calib = np.zeros_like(time_calib)
+        Tf_calib[0] = T_110_actual  # Set the initial temperature for the calibration phase
 
-    # Use the calibration pump configuration for the simulation
-    dWp_dt_calib = calib_pump_power_kw * calib_pump_eff/100 * pump_heat_factor * 1000 * calib_num_pumps  # W
-    F_calib = (calib_pump_flow_m3h / 3600) * calib_num_pumps  # m³/s
+        # Use the calibration pump configuration for the simulation
+        dWp_dt_calib = calib_pump_power_kw * calib_pump_eff/100 * pump_heat_factor * 1000 * calib_num_pumps  # W
+        F_calib = (calib_pump_flow_m3h / 3600) * calib_num_pumps  # m³/s
 
     # Run the simulation for the calibration phase
     for i in range(1, len(time_calib)):
