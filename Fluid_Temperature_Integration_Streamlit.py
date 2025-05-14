@@ -123,7 +123,6 @@ if st.button("Run Simulation"):
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
 
-    T_eq = T_ambient + dWp_dt * R_total
     T_90 =  -21.7391 * np.log(min_mu / 0.1651)
     T_110 = -21.7391 * np.log(max_mu / 0.1651)
     T_target = -21.7391 * np.log(target_mu/1000 / 0.1651)
@@ -166,6 +165,8 @@ if st.button("Run Simulation"):
         R_total_calib = R_conv_in_calib + R_cond_pipe + R_cond_insul + R_conv_out
         dT_dt_calib = (dWp_dt_calib - (Tf_calib[i-1] - T_ambient) / R_total_calib) / (m * cp_fluid)
         Tf_calib[i] = Tf_calib[i-1] + dT_dt_calib * dt
+
+    T_eq = T_ambient + dWp_dt * R_total
 
     # Find 90% time
     idx_90 = np.where(Tf >= T_90)[0]
