@@ -47,7 +47,6 @@ else:
 
 # === Piping Data ===
 st.header("Piping Data")
-col3, col4 = st.columns(2)
 
 
     d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
