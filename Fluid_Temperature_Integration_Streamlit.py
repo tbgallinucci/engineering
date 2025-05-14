@@ -53,16 +53,16 @@ else:
 # === Pump Data ===
 
     st.header("Heating Phase Pump Config")
-    pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
-    pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
-    pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
-    num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+    pump_power_kw = st.number_input("Nominal power heating per pump (kW):", min_value=0.1, value=69.0)
+    pump_flow_m3h = st.number_input("Flow rate per heating pump (m³/h):", min_value=0.1, value=550.0)
+    pump_eff = st.number_input("Heating pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+    num_pumps = st.number_input("Number of heating pumps operating in parallel:", min_value=1, step=1, value=1)
 
     st.header("Calibration Phase Pump Config")
-    calib_pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
-    calib_pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
-    calib_pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
-    calib_num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+    calib_pump_power_kw = st.number_input("Nominal power per calibration pump (kW):", min_value=0.1, value=69.0)
+    calib_pump_flow_m3h = st.number_input("Flow rate per calibration pump (m³/h):", min_value=0.1, value=550.0)
+    calib_pump_eff = st.number_input("Calibration pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+    calib_num_pumps = st.number_input("Number of calibration pumps operating in parallel:", min_value=1, step=1, value=1)
 
 
 # === Piping Data ===
