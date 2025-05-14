@@ -37,7 +37,7 @@ else:
     cp_fluid = 2000.0  # J/kg·K
     k_fluid = 0.12  # W/m·K
 
-# viscosity models by fluid
+    # viscosity models by fluid
     if fluid_choice == "KRD MAX 225":
         viscosity_model = lambda Tf: 0.1651 * np.exp(-0.046 * Tf)
 
@@ -52,31 +52,42 @@ else:
 
 # === Pump Data ===
 
-    st.header("Pump Data")
-    pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
-    pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
-    pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
-    num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+st.header("Heating Phase Pump Config")
+pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
+pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
+pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
 
+st.header("Calibration Phase Pump Config")
+pump_power_kw_calibration = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
+F_calibration = (calibration_flow_rate / 3600) * calibration_num_pumps  # m³/s
+eff_calibration = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
+num_pumps_calibration = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+dWp_dt_calibration = pump_power_kw_calibration * eff_calibration / 100 * pump_heat_factor * 1000 * num_pumps_calibration  # W
 
 # === Piping Data ===
 
-    st.header("Piping Data")
-    d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
-    D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
-    L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
+st.header("Piping Data")
+d = st.number_input("Inner pipe diameter (m):", min_value=0.01, value=0.25716)
+D = st.number_input("Outer pipe diameter (m):", min_value=0.01, value=0.3238)
+L = st.number_input("Pipe length (m):", min_value=1.0, value=40.0)
 
-    # Insulation option should not be indented too far
-    use_insulation = st.checkbox("Use pipe insulation?", value=False)
+# Insulation option should not be indented too far
+use_insulation = st.checkbox("Use pipe insulation?", value=False)
 
-    if use_insulation:
-        insulation_thickness = st.number_input("Insulation thickness (m):", min_value=0.001, value=0.01)  # e.g., 10mm
-        D_insul = D + 2 * insulation_thickness
-        st.write(f"Outer diameter with insulation: {D_insul:.3f} m")
-        k_insul = st.number_input("Insulation thermal conductivity (W/m·K):", min_value=0.01, value=0.04)
-
+if use_insulation:
+    insulation_thickness = st.number_input("Insulation thickness (m):", min_value=0.001, value=0.01)  # e.g., 10mm
+    D_insul = D + 2 * insulation_thickness
+    st.write(f"Outer diameter with insulation: {D_insul:.3f} m")
+    k_insul = st.number_input("Insulation thermal conductivity (W/m·K):", min_value=0.01, value=0.04)
 
 t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=24.0)
+
+# === Calibration Phase Data ===
+st.header("Calibration Phase Data")
+calibration_flow_rate = st.number_input("Calibration Flow rate per pump (m³/h):", min_value=0.1, value=440.0)
+calibration_pump_eff = st.number_input("Calibration Pump efficiency (%):", min_value=1.0, max_value=100.0, value=50.0)
+calibration_num_pumps = st.number_input("Number of pumps in Calibration phase:", min_value=1, step=1, value=1)
 
 # === Run Simulation ===
 if st.button("Run Simulation"):
@@ -106,6 +117,8 @@ if st.button("Run Simulation"):
     Tf = np.zeros_like(time)
     Tf[0] = T_ambient
 
+    # Phases transition logic
+    reached_max_viscosity_temp = False
     for i in range(1, len(time)):
         mu_t = viscosity_model(Tf[i-1])
         Re = (4 * F * rho) / (np.pi * d * mu_t)
@@ -117,12 +130,16 @@ if st.button("Run Simulation"):
         R_total = R_conv_in + R_cond_pipe + R_cond_insul + R_conv_out
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
-        
-        # Check if max viscosity temperature is reached and switch to calibration phase
-        if Tf[i-1] >= T_110:
-            # Adjust model for calibration phase (after max_mu is reached)
-            mu_t = viscosity_model(Tf[i-1])
 
+        # Transition to Calibration Phase after reaching T_110
+        if Tf[i-1] >= T_110 and not reached_max_viscosity_temp:
+            reached_max_viscosity_temp = True
+            st.write("📈 Transitioned to Calibration Phase!")
+            
+            # Update the pump configuration for the calibration phase
+            F = F_calibration
+            dWp_dt = dWp_dt_calibration
+        
     T_eq = T_ambient + dWp_dt * R_total
     T_90 =  -21.7391 * np.log(min_mu / 0.1651)
     T_110 = -21.7391 * np.log(max_mu / 0.1651)
@@ -153,76 +170,17 @@ if st.button("Run Simulation"):
 
     st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
-    st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
-    st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
-    # Convert t_110_h to hours and minutes
-    t_110_hours = int(t_110_h)
-    t_110_minutes = int((t_110_h - t_110_hours) * 60)
+    st.write(f"🔼 **Temperature for Max Viscosity**: {T_110:.2f} °C")
+    st.write(f"🕒 **Time to reach max viscosity**: {t_110_h:.2f} hours")
 
-    st.write(f"⏱️ **Time to Max Viscosity**: {t_110_hours} h {t_110_minutes} min")
-    # Calculate the time difference in hours
-    calibration_time_h = t_90_h - t_110_h
-
-    # Convert to full hours and minutes
-    hours = int(calibration_time_h)
-    minutes = int((calibration_time_h - hours) * 60)
-
-    st.write(f"📏 **Available Calibration Time after reaching Max Viscosity**: {hours} h {minutes} min")
-
-    # Interactive Plot using Plotly
+    # Plot the result
     fig = go.Figure()
-
-    label_text = f"""{fluid_choice} - {num_pumps} Pump(s), {pump_power_kw*num_pumps:.1f} kW, {pump_flow_m3h*num_pumps:.1f} m³/h\nTotal Fluid Volume = {total_volume_m3:.1f} m³"""
-
-    # Add the temperature over time curve
-    fig.add_trace(go.Scatter(x=time / 3600, y=Tf, mode='lines', name=label_text))
-
-    # Add equilibrium temperature line
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', 
-                             name=f'Equilibrium Temp: {T_eq:.1f} °C', 
-                             line=dict(color='red', dash='dash')))
-
-    # Add 90% viscosity temperature line (horizontal)
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', 
-                             name=f'90% Viscosity Temp: {T_90:.1f} °C', 
-                             line=dict(color='green', dash='dot')))
-
-    # Add time to reach 90% viscosity (vertical, crossing whole plot)
-    fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
-                             name=f'Time to reach 90% Viscosity ≈ {t_90_h:.2f} h', 
-                             line=dict(color='green', dash='dot')))
-
-    # Add green dot at 90% viscosity
-    fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
-                             marker=dict(color='green', size=7), 
-                             name='90% Viscosity Point'))
-
-    # Add 110% viscosity temperature line (horizontal)
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_110, T_110], mode='lines', 
-                             name=f'110% Viscosity Temp: {T_110:.1f} °C', 
-                             line=dict(color='purple', dash='dot')))
-
-    # Add time to reach 110% viscosity (vertical, crossing whole plot)
-    fig.add_trace(go.Scatter(x=[t_110_h, t_110_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
-                             name=f'Time to reach 110% Viscosity ≈ {t_110_h:.2f} h', 
-                             line=dict(color='purple', dash='dot')))
-
-    # Add green dot at 110% viscosity
-    fig.add_trace(go.Scatter(x=[t_110_h], y=[T_110_actual], mode='markers', 
-                             marker=dict(color='purple', size=7), 
-                             name='110% Viscosity Point'))
-    
-    # Update layout
-    fig.update_layout(
-        title="Temperature Rise Over Time",
-        xaxis_title="Time (h)",
-        yaxis_title="Temperature (°C)",
-        showlegend=True,
-        template="plotly_dark"
-    )
-
-    # Display interactive plot in Streamlit
+    fig.add_trace(go.Scatter(x=time/3600, y=Tf, mode='lines', name='Temperature'))
+    fig.update_layout(title="Temperature vs. Time",
+                      xaxis_title="Time (hours)",
+                      yaxis_title="Temperature (°C)")
     st.plotly_chart(fig)
+
 
 
 
