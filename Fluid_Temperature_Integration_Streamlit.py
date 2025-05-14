@@ -26,10 +26,10 @@ if use_manual_input:
     viscosity_model = lambda Tf: mu_constant
 else:
     fluid_choice = st.selectbox("Select fluid from library:", [
-        "KRD MAX 225",
-        "KRD MAX 2205",
-        "KRD MAX 685",
-        "KRD MAX 55"
+        "KRD MAX 225 (11.4 - 40.8 cP)",
+        "KRD MAX 2205 (82.5 - 402 cP)",
+        "KRD MAX 685 (68.2 - 115.6 cP)",
+        "KRD MAX 55 (2.4 - 4.64 cP)"
     ])
     
     # Fluid properties
@@ -38,16 +38,16 @@ else:
     k_fluid = 0.12  # W/m·K
 
     # viscosity models by fluid
-    if fluid_choice == "KRD MAX 225":
+    if fluid_choice == "KRD MAX 225 (11.4 - 40.8 cP)":
         viscosity_model = lambda Tf: 0.1651 * np.exp(-0.046 * Tf)
 
-    elif fluid_choice == "KRD MAX 2205":
+    elif fluid_choice == "KRD MAX 2205 (82.5 - 402 cP)":
         viscosity_model = lambda Tf: 1.9133 * np.exp(-0.053 * Tf)
 
-    elif fluid_choice == "KRD MAX 685":
+    elif fluid_choice == "KRD MAX 685 (68.2 - 115.6 cP":
         viscosity_model = lambda Tf: 0.5933 * np.exp(-0.054 * Tf)
 
-    elif fluid_choice == "KRD MAX 55":
+    elif fluid_choice == "KRD MAX 55 (2.4 - 4.64 cP)":
         viscosity_model = lambda Tf: -9e-08 * Tf**3 + 1e-05 * Tf**2 - 0.0007 * Tf + 0.0165
 
 # === Pump Data ===
@@ -123,22 +123,22 @@ if st.button("Run Simulation"):
         dT_dt = (dWp_dt - (Tf[i-1] - T_ambient) / R_total) / (m * cp_fluid)
         Tf[i] = Tf[i-1] + dT_dt * dt
 
-    if fluid_choice == "KRD MAX 225":
+    if fluid_choice == "KRD MAX 225 (11.4 - 40.8 cP)":
         T_90 =  -1 / 0.046 * np.log(min_mu / 0.1651)
         T_110 = -1 / 0.046 * np.log(max_mu / 0.1651)
         T_target = -1 / 0.046 * np.log(target_mu / 1000 / 0.1651)
 
-    elif fluid_choice == "KRD MAX 2205":
+    elif fluid_choice == "KRD MAX 2205 (82.5 - 402 cP)":
         T_90 =  -1 / 0.053 * np.log(min_mu / 1.9133)
         T_110 = -1 / 0.053 * np.log(max_mu / 1.9133)
         T_target = -1 / 0.053 * np.log(target_mu / 1000 / 1.9133)
 
-    elif fluid_choice == "KRD MAX 685":
+    elif fluid_choice == "KRD MAX 685 (68.2 - 115.6 cP":
         T_90 =  -1 / 0.054 * np.log(min_mu / 0.5933)
         T_110 = -1 / 0.054 * np.log(max_mu / 0.5933)
         T_target = -1 / 0.054 * np.log(target_mu / 1000 / 0.5933)
 
-    elif fluid_choice == "KRD MAX 55":
+    elif fluid_choice == "KRD MAX 55 (2.4 - 4.64 cP)":
         # Inverse of polynomial needs to be solved numerically
         def inverse_viscosity(mu_target):
             from scipy.optimize import fsolve
