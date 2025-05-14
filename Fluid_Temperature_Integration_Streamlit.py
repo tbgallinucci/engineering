@@ -173,7 +173,7 @@ if st.button("Run Simulation"):
 
     # Add 110% viscosity temperature line (horizontal)
     fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_110, T_110], mode='lines', 
-                             name=f110% Viscosity Temp: {T_110:.1f} °C', 
+                             name=f'110% Viscosity Temp: {T_110:.1f} °C', 
                              line=dict(color='green', dash='dot')))
 
     # Add time to reach 110% viscosity (vertical, crossing whole plot)
