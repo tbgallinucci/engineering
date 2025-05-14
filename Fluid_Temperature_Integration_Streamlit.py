@@ -41,21 +41,15 @@ k_fluid = 0.12  # W/m·K
 if fluid_choice == "KRD MAX 225":
     viscosity_model = lambda Tf: 0.1651 * np.exp(-0.046 * Tf)
 
-elif fluid_choice == "KRD MAX 2205":
-    viscosity_model = lambda Tf: 1.9133 * np.exp(-0.053 * Tf)
+    elif fluid_choice == "KRD MAX 2205":
+        viscosity_model = lambda Tf: 1.9133 * np.exp(-0.053 * Tf)
 
-elif fluid_choice == "KRD MAX 685":
-    viscosity_model = lambda Tf: 0.5933 * np.exp(-0.054 * Tf)
+    elif fluid_choice == "KRD MAX 685":
+        viscosity_model = lambda Tf: 0.5933 * np.exp(-0.054 * Tf)
 
-elif fluid_choice == "KRD MAX 55":
-    viscosity_model = lambda Tf: -9e-08 * Tf**3 + 1e-05 * Tf**2 - 0.0007 * Tf + 0.0165
-        rho = 850.0  # kg/m³
-        cp_fluid = 2000.0  # J/kg·K
-        k_fluid = 0.12  # W/m·K
+    elif fluid_choice == "KRD MAX 55":
+        viscosity_model = lambda Tf: -9e-08 * Tf**3 + 1e-05 * Tf**2 - 0.0007 * Tf + 0.0165
 
-        # viscosity in Pa·s
-        def viscosity_model(Tf):
-            return 0.1651 * np.exp(-0.046 * Tf)
 
 # === Pump Data ===
 
