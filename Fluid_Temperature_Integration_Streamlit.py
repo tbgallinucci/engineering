@@ -53,17 +53,16 @@ else:
 # === Pump Data ===
 
 st.header("Heating Phase Pump Config")
-pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
-pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0)
-pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
-num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
+pump_power_kw = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0, key="heating_phase_pump_power")
+pump_flow_m3h = st.number_input("Flow rate per pump (m³/h):", min_value=0.1, value=550.0, key="heating_phase_pump_flow")
+pump_eff = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0, key="heating_phase_pump_eff")
+num_pumps = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1, key="heating_phase_num_pumps")
 
-st.header("Calibration Phase Pump Config")
-pump_power_kw_calibration = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0)
-F_calibration = (calibration_flow_rate / 3600) * calibration_num_pumps  # m³/s
-eff_calibration = st.number_input("Pump efficiency (%):", min_value=1.0, max_value=100.0, value=58.0)
-num_pumps_calibration = st.number_input("Number of pumps operating in parallel:", min_value=1, step=1, value=1)
-dWp_dt_calibration = pump_power_kw_calibration * eff_calibration / 100 * pump_heat_factor * 1000 * num_pumps_calibration  # W
+# Calibration Phase Pump Data
+pump_power_kw_calibration = st.number_input("Nominal power per pump (kW):", min_value=0.1, value=69.0, key="calibration_phase_pump_power")
+calibration_flow_rate = st.number_input("Calibration Flow rate per pump (m³/h):", min_value=0.1, value=440.0, key="calibration_phase_flow_rate")
+calibration_pump_eff = st.number_input("Calibration Pump efficiency (%):", min_value=1.0, max_value=100.0, value=50.0, key="calibration_phase_pump_eff")
+calibration_num_pumps = st.number_input("Number of pumps in Calibration phase:", min_value=1, step=1, value=1, key="calibration_phase_num_pumps")
 
 # === Piping Data ===
 
