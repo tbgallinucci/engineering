@@ -107,6 +107,10 @@ if st.button("Run Simulation"):
     T_eq = T_ambient + dWp_dt * R_total
     T_90 =  0.9 * T_eq
 
+        # Results Display
+    mu_eq = viscosity_model(T_eq)
+    mu_90 = viscosity_model(T_90)
+
     # Find 90% time
     idx_90 = np.where(Tf >= T_90)[0]
     if len(idx_90) > 0:
@@ -115,10 +119,6 @@ if st.button("Run Simulation"):
     else:
         t_90_h = None
         T_90_actual = None
-
-    # Results Display
-    mu_eq = viscosity_model(T_eq)
-    mu_90 = viscosity_model(T_90)
 
     st.success(f"Equilibrium Temperature: {T_eq:.1f} °C")
     st.info(f"90% of Equilibrium Temp: {T_90:.1f} °C")
