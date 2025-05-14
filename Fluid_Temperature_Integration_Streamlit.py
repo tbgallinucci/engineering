@@ -94,6 +94,13 @@ calibration_pump_heat_factor = 1.0  # assumed constant for calibration phase
 calibration_dWp_dt = calibration_pump_power_kw * calibration_pump_eff / 100 * calibration_pump_heat_factor * 1000 * calibration_num_pumps  # W
 calibration_F = (calibration_pump_flow_m3h / 3600) * calibration_num_pumps  # m³/s
 
+    # Euler Simulation
+    dt = 0.1
+    t_max = t_max_h * 3600
+    time = np.arange(0, t_max, dt)
+    Tf = np.zeros_like(time)
+    Tf[0] = T_ambient
+
 # Simulation: Switching between Heating and Calibration Phase
 for i in range(1, len(time)):
     # Check if the system has reached max viscosity
@@ -119,13 +126,6 @@ for i in range(1, len(time)):
     R_cond_insul = np.log(D_insul / D) / (2 * np.pi * k_insul * L) if use_insulation else 0
     outer_diameter = D_insul if use_insulation else D
     R_conv_out = 1 / (h_out * np.pi * outer_diameter * L)
-
-    # Euler Simulation
-    dt = 0.1
-    t_max = t_max_h * 3600
-    time = np.arange(0, t_max, dt)
-    Tf = np.zeros_like(time)
-    Tf[0] = T_ambient
 
     for i in range(1, len(time)):
         mu_t = viscosity_model(Tf[i-1])
