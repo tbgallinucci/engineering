@@ -139,10 +139,10 @@ if st.button("Run Simulation"):
         st.info(f"Time to reach 90% equilibrium: ≈ {t_90_h:.2f} h")
 
     st.write(f"🛢️ **Selected Fluid**: {fluid_choice}")
-    st.write(f"🛢️ **Viscosity at T_eq ({T_eq:.1f} °C)**: {mu_eq*1000:.2f} cP")
+    st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
     st.write(f"🔼 **Temperature for Max Viscosity ({max_mu*1000:.2f} cP)**: {T_110:.1f} °C")
     st.write(f"🔽 **Temperature for Min Viscosity ({min_mu*1000:.2f} cP)**: {T_90:.1f} °C")
-    st.write(f"🎯 **Temperature for Target Viscosity ({target_mu:.2f} cP)**: {T_target:.1f} °C")
+    st.write(f"⏱️ **Time to Max Viscosity**: {t_110_h:.2f} h")
     st.write(f"📏 **Available Calibration Time**: {t_90_h - t_110_h:.2f} h")
 
     # Interactive Plot using Plotly
