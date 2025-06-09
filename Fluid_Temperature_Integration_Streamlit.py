@@ -20,7 +20,7 @@ use_manual_input = st.checkbox("Manually input fluid properties")
 
 if use_manual_input:
     rho = st.number_input("Fluid density (kg/m³):", min_value=100.0, value=850.0)
-    cp_fluid = st.number_input("Fluid specific heat capacity (J/kg·K):", min_value=0.1, value=2000.0) 
+    cp_fluid = st.number_input("Fluid specific heat capacity (J/kg·K):", min_value=0.1, value=2000.0)
     k_fluid = st.number_input("Fluid thermal conductivity (W/m·K):", min_value=0.01, value=0.12)
     mu_constant = st.number_input("Fluid dynamic viscosity (Pa·s):", min_value=0.001, value=0.3)
     viscosity_model = lambda Tf: mu_constant
@@ -31,7 +31,7 @@ else:
         "KRD MAX 685 (68.2 - 115.6 cP)",
         "KRD MAX 55 (2.4 - 4.64 cP)"
     ])
-    
+
     # Fluid properties
     rho = 850.0  # kg/m³
     cp_fluid = 2000.0  # J/kg·K
@@ -51,6 +51,14 @@ else:
         viscosity_model = lambda Tf: -9e-08 * Tf**3 + 1e-05 * Tf**2 - 0.0007 * Tf + 0.0165
 
 # === Pump Data ===
+st.header("Pump Data")
+pump_heat_factor = st.number_input(
+    "Pump Heat Factor:",
+    min_value=0.0,
+    value=1.0,
+    step=0.1,
+    help="A multiplier applied to the pump's hydraulic power to calculate the heat added to the fluid."
+)
 
 st.header("Heating Phase Pump Config")
 pump_power_kw = st.number_input("Nominal power heating per pump (kW):", min_value=0.1, value=69.0)
@@ -86,7 +94,6 @@ t_max_h = st.number_input("Total simulation time (h):", min_value=0.1, value=10.
 # === Run Simulation ===
 if st.button("Run Simulation"):
     # Convert inputs for Heating Phase
-    pump_heat_factor = 1.0  # lost power to fluid
     dWp_dt = pump_power_kw * pump_eff/100 * pump_heat_factor * 1000 * num_pumps  # W
     F = (pump_flow_m3h / 3600) * num_pumps  # m³/s
 
@@ -148,7 +155,7 @@ if st.button("Run Simulation"):
         T_90 = inverse_viscosity(min_mu)
         T_110 = inverse_viscosity(max_mu)
         T_target = inverse_viscosity(target_mu / 1000)
-    
+
     else:
         T_90 = T_110 = T_target = None
 
@@ -231,14 +238,14 @@ if st.button("Run Simulation"):
     st.write(f"📦 **Total Fluid Volume**: {total_volume_m3} m³")
     st.write(f"🎯 **Target Viscosity**: {target_mu:.2f} cP")
     st.write(f"⏱️ **Heating time**: {t_110_hours} h {t_110_minutes} min")
-    
+
     # Calculate the time difference in hours
     calibration_time_h = t_90_h - t_110_h
-    
+
     # Convert to full hours and minutes
     hours = int(calibration_time_h)
     minutes = int((calibration_time_h - hours) * 60)
-    
+
     st.write(f"📏 **Available Calibration Time Window**: {hours} h {minutes} min")
 
     # Create plot of Temperature over time
@@ -248,40 +255,40 @@ if st.button("Run Simulation"):
     fig.update_layout(title="Temperature vs Time", xaxis_title="Time (hours)", yaxis_title="Temperature (°C)")
 
     # Add equilibrium temperature line
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines', 
-                             name=f'Equilibrium Temp: {T_eq:.1f} °C', 
-                             line=dict(color='red', dash='dash')))
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_eq, T_eq], mode='lines',
+                                 name=f'Equilibrium Temp: {T_eq:.1f} °C',
+                                 line=dict(color='red', dash='dash')))
 
     # Add 90% viscosity temperature line (horizontal)
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines', 
-                             name=f'90% Viscosity Temp: {T_90:.1f} °C', 
-                             line=dict(color='green', dash='dot')))
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_90, T_90], mode='lines',
+                                 name=f'90% Viscosity Temp: {T_90:.1f} °C',
+                                 line=dict(color='green', dash='dot')))
 
     # Add time to reach 90% viscosity (vertical, crossing whole plot)
-    fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
-                             name=f'Time to reach 90% Viscosity ≈ {t_90_h:.2f} h', 
-                             line=dict(color='green', dash='dot')))
+    fig.add_trace(go.Scatter(x=[t_90_h, t_90_h], y=[T_ambient - 5, T_eq + 5], mode='lines',
+                                 name=f'Time to reach 90% Viscosity ≈ {t_90_h:.2f} h',
+                                 line=dict(color='green', dash='dot')))
 
     # Add green dot at 90% viscosity
-    fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers', 
-                             marker=dict(color='green', size=7), 
-                             name='90% Viscosity Point'))
+    fig.add_trace(go.Scatter(x=[t_90_h], y=[T_90_actual], mode='markers',
+                                 marker=dict(color='green', size=7),
+                                 name='90% Viscosity Point'))
 
     # Add 110% viscosity temperature line (horizontal)
-    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_110, T_110], mode='lines', 
-                             name=f'110% Viscosity Temp: {T_110:.1f} °C', 
-                             line=dict(color='purple', dash='dot')))
+    fig.add_trace(go.Scatter(x=[0, t_max_h], y=[T_110, T_110], mode='lines',
+                                 name=f'110% Viscosity Temp: {T_110:.1f} °C',
+                                 line=dict(color='purple', dash='dot')))
 
     # Add time to reach 110% viscosity (vertical, crossing whole plot)
-    fig.add_trace(go.Scatter(x=[t_110_h, t_110_h], y=[T_ambient - 5, T_eq + 5], mode='lines', 
-                             name=f'Time to reach 110% Viscosity ≈ {t_110_h:.2f} h', 
-                             line=dict(color='purple', dash='dot')))
+    fig.add_trace(go.Scatter(x=[t_110_h, t_110_h], y=[T_ambient - 5, T_eq + 5], mode='lines',
+                                 name=f'Time to reach 110% Viscosity ≈ {t_110_h:.2f} h',
+                                 line=dict(color='purple', dash='dot')))
 
     # Add green dot at 110% viscosity
-    fig.add_trace(go.Scatter(x=[t_110_h], y=[T_110_actual], mode='markers', 
-                             marker=dict(color='purple', size=7), 
-                             name='110% Viscosity Point'))
-    
+    fig.add_trace(go.Scatter(x=[t_110_h], y=[T_110_actual], mode='markers',
+                                 marker=dict(color='purple', size=7),
+                                 name='110% Viscosity Point'))
+
     st.plotly_chart(fig)
 
     #else:
