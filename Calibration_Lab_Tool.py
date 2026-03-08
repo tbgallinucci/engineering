@@ -500,18 +500,92 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
             ('BOTTOMPADDING', (0,0), (-1,-1), 3),
         ])
 
-    # ── Plotly fig → PNG → ReportLab Image (requires kaleido) ─────────────────
-    def fig_to_rl_image(fig, width_mm=170, height_mm=90):
-        try:
-            fig.update_layout(width=1000, height=500, margin=dict(l=40,r=40,t=50,b=40))
-            img_bytes = fig.to_image(format='png', scale=2)
-            buf = io.BytesIO(img_bytes)
-            return RLImage(buf, width=width_mm*mm, height=height_mm*mm)
-        except Exception:
-            msg = ("[Gráfico indisponível — instale kaleido: pip install kaleido]"
-                   if PT else
-                   "[Chart unavailable — install kaleido: pip install kaleido]")
-            return Paragraph(msg, style_small)
+    # ── Matplotlib chart → PNG bytes → ReportLab Image ────────────────────────
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as ticker
+
+    PLT_STYLE = {'figure.facecolor': 'white', 'axes.facecolor': 'white',
+                 'axes.grid': True, 'grid.alpha': 0.35, 'axes.spines.top': False,
+                 'axes.spines.right': False}
+
+    def mpl_to_rl(fig_mpl, width_mm=170, height_mm=85):
+        plt.rcParams.update(PLT_STYLE)
+        buf2 = io.BytesIO()
+        fig_mpl.savefig(buf2, format='png', dpi=150, bbox_inches='tight')
+        plt.close(fig_mpl)
+        buf2.seek(0)
+        return RLImage(buf2, width=width_mm*mm, height=height_mm*mm)
+
+    def make_thermal_chart(d):
+        plt.rcParams.update(PLT_STYLE)
+        fig_m, ax = plt.subplots(figsize=(9, 4.2))
+        ax.plot(d['t_hp'], d['T_hp'], color='orangered', lw=2,
+                label='Aquecimento' if PT else 'Heating')
+        ax.plot(d['tc_h'], d['Tf_c'], color='royalblue', lw=2,
+                label='Calibração' if PT else 'Calibration')
+        ax.axhline(d['T110'], color='purple', ls='--', lw=1,
+                   label=f"T 110%µ = {d['T110']:.1f}°C")
+        if d['T90']:
+            ax.axhline(d['T90'], color='green', ls='--', lw=1,
+                       label=f"T 90%µ = {d['T90']:.1f}°C")
+        ax.axhline(d['T_eq'], color='orangered', ls=':', lw=1,
+                   label=f"T_eq = {d['T_eq']:.1f}°C")
+        ax.axvline(d['t110_h'], color='purple', ls=':', lw=1)
+        if d['t90_h']:
+            ax.axvline(d['t90_h'], color='green', ls=':', lw=1)
+            ax.axvspan(d['t110_h'], d['t90_h'], alpha=0.08, color='green',
+                       label='Janela calibração' if PT else 'Calib. window')
+        ax.set_xlabel('Tempo (h)' if PT else 'Time (h)', fontsize=9)
+        ax.set_ylabel('Temperatura (°C)' if PT else 'Temperature (°C)', fontsize=9)
+        ax.set_title('Temperatura do Fluido vs Tempo' if PT else 'Fluid Temperature vs Time',
+                     fontsize=10, fontweight='bold')
+        ax.legend(fontsize=7, ncol=3, loc='lower right')
+        fig_m.tight_layout()
+        return mpl_to_rl(fig_m)
+
+    def make_hydraulic_chart(d):
+        plt.rcParams.update(PLT_STYLE)
+        fig_m, ax = plt.subplots(figsize=(9, 4.8))
+        Qr = d['Qr']
+        # System curves
+        ax.plot(Qr, d['H_sys20'],  color='steelblue', lw=2,
+                label='Sistema 20%' if PT else 'System 20%')
+        ax.plot(Qr, d['H_sys100'], color='royalblue', lw=2,
+                label='Sistema 100%' if PT else 'System 100%')
+        uop = d['user_op']
+        if uop not in (20, 100):
+            ax.plot(Qr, d['H_sys_usr'], color='cornflowerblue', lw=1.5, ls=':',
+                    label=f"Sistema {uop}%" if PT else f"System {uop}%")
+        # Pump curves
+        ax.plot(d['Qmin'], d['Hmin'], color='#FFB300', lw=2,
+                label=f"Bomba {d['pc_fmin']:.0f}Hz" if PT else f"Pump {d['pc_fmin']:.0f}Hz")
+        ax.plot(d['Qmx'],  d['Hmx'],  color='#CC0000', lw=2,
+                label=f"Bomba {d['pc_fmax']:.0f}Hz" if PT else f"Pump {d['pc_fmax']:.0f}Hz")
+        if d['pc_freq0'] not in (d['pc_fmin'], d['pc_fmax']):
+            ax.plot(d['Qnom'], d['Hnom'], color='orangered', lw=1.5, ls=':',
+                    label=f"Bomba {d['pc_freq0']:.0f}Hz" if PT else f"Pump {d['pc_freq0']:.0f}Hz")
+        # Operating points
+        op_colors = {'20%': '#e67e00', f"{uop}%": '#8B008B', '100%': '#006400'}
+        for freq_key, ops_t in [('fmin', d['ops_fmin_pts']),
+                                  ('fnom', d['ops_fnom_pts']),
+                                  ('fmax', d['ops_fmax_pts'])]:
+            sym = {'fmin': 'v', 'fnom': 'o', 'fmax': '^'}[freq_key]
+            for lbl, (q_op, h_op) in [('20%', ops_t[0]), (f"{uop}%", ops_t[1]), ('100%', ops_t[2])]:
+                if q_op is not None:
+                    col = op_colors.get(lbl, 'black')
+                    ax.plot(q_op, h_op, marker=sym, ms=8, color=col, zorder=5)
+        if d['y_max']:
+            ax.set_ylim(0, d['y_max'])
+        ax.set_xlim(0, d['hy_qmax'] * 1.05)
+        ax.set_xlabel('Vazão (m³/h)' if PT else 'Flow Rate (m³/h)', fontsize=9)
+        ax.set_ylabel('Altura Manométrica (m)' if PT else 'Head (m)', fontsize=9)
+        ax.set_title('Curva do Sistema e Bomba' if PT else 'System & Pump Curve',
+                     fontsize=10, fontweight='bold')
+        ax.legend(fontsize=7, ncol=3, loc='upper right')
+        fig_m.tight_layout()
+        return mpl_to_rl(fig_m)
 
     # ── Document ──────────────────────────────────────────────────────────────
     buf = io.BytesIO()
@@ -611,7 +685,7 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         story.append(tr)
 
         story.append(Paragraph("2.3 " + ("Curva de Temperatura" if PT else "Temperature Curve"), style_h2))
-        story.append(fig_to_rl_image(th_data['fig'], width_mm=170, height_mm=85))
+        story.append(make_thermal_chart(th_data))
 
     # ── 3. Hydraulic / System Curve ───────────────────────────────────────────
     if hy_data:
@@ -632,7 +706,7 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         story.append(th2)
 
         story.append(Paragraph("3.2 " + ("Curva do Sistema e Pontos de Operação" if PT else "System Curve & Operating Points"), style_h2))
-        story.append(fig_to_rl_image(hy_data['fig'], width_mm=170, height_mm=95))
+        story.append(make_hydraulic_chart(hy_data))
 
         # Operating point tables
         story.append(Paragraph("3.3 " + ("Pontos de Operação — Rotação Variável" if PT else "Operating Points — Variable Speed"), style_h2))
@@ -924,7 +998,11 @@ with tab_th:
             'ef_heat': ef_heat, 'P_cal': P_cal, 'Q_cal': Q_cal, 'ef_cal': ef_cal,
             'Tnom': Tnom, 'T90': T90, 'T110': T110, 'T_eq': T_eq,
             't110_h': t110_h, 'cwin_h': cwin_h,
-            'fig': fig,
+            # raw arrays for PDF chart (no kaleido needed)
+            't_hp': t_hp / 3600.0, 'T_hp': T_hp,
+            'tc_h': tc / 3600.0,   'Tf_c': Tf_c,
+            't90_h': t90_h, 'T90_v': T90_v if t90_h is not None else None,
+            'T110_v': T110_v,
         }
 
 
@@ -1277,7 +1355,15 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'ops_fmin': ops_as_list(ops_fmin),
             'ops_fnom': ops_as_list(ops_fnom),
             'ops_fmax': ops_as_list(ops_fmax),
-            'fig': fh,
+            # raw arrays for PDF chart
+            'Qr': Qr,
+            'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
+            'user_op': user_op,
+            'Qnom': Qnom, 'Hnom': Hnom,
+            'Qmin': Qmin, 'Hmin': Hmin,
+            'Qmx': Qmx,  'Hmx': Hmx,
+            'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
+            'y_max': y_max,
         }
 
 
