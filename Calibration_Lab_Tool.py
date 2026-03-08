@@ -324,98 +324,7 @@ TR = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SIDEBAR
-# ─────────────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    lang = st.radio("🌐 Idioma / Language", ["pt", "en"],
-                    format_func=lambda x: "🇧🇷 Português" if x == "pt" else "🇺🇸 English",
-                    horizontal=True)
-    S = TR[lang]
 
-    st.header(S["sidebar_header"])
-    st.subheader(S["fluid_sub"])
-
-    use_manual = st.checkbox(S["manual_cb"], value=False)
-    if use_manual:
-        rho      = st.number_input(S["density"], min_value=100.0, value=850.0)
-        cp_fluid = st.number_input(S["cp"],      min_value=0.1,   value=2000.0)
-        k_fluid  = st.number_input(S["k_lbl"],   min_value=0.01,  value=0.12)
-        _mu      = st.number_input(S["mu_lbl"],  min_value=0.001, value=0.025)
-        viscosity_model = lambda Tf, m=_mu: m
-        fluid_choice = "Manual"
-    else:
-        FLUIDS = [
-            "KRD MAX 225 (11.4 - 40.8 cP)",
-            "KRD MAX 2205 (82.5 - 402 cP)",
-            "KRD MAX 685 (68.2 - 115.6 cP)",
-            "KRD MAX 55 (2.4 - 4.64 cP)",
-        ]
-        fluid_choice = st.selectbox(S["sel_fluid"], FLUIDS)
-        rho = 850.0; cp_fluid = 2000.0; k_fluid = 0.12
-        _vm = {
-            FLUIDS[0]: lambda Tf: 0.1651  * np.exp(-0.046 * Tf),
-            FLUIDS[1]: lambda Tf: 1.9133  * np.exp(-0.053 * Tf),
-            FLUIDS[2]: lambda Tf: 0.5933  * np.exp(-0.054 * Tf),
-            FLUIDS[3]: lambda Tf: -9e-08*Tf**3 + 1e-05*Tf**2 - 0.0007*Tf + 0.0165,
-        }
-        viscosity_model = _vm[fluid_choice]
-
-    st.subheader(S["pipe_sub"])
-    d_inner  = st.number_input(S["d_in"],    min_value=0.01, value=0.2571)
-    D_outer  = st.number_input(S["d_out"],   min_value=0.01, value=0.3238)
-    L_pipe   = st.number_input(S["L_p"],     min_value=1.0,  value=40.0)
-    rug_mm   = st.number_input(S["hy_rug"],  min_value=0.001, value=0.046, help=S["hy_rug_h"])
-    dz_glob  = st.number_input(S["hy_dz"],   value=2.0)
-    eps_emit = st.number_input(S["eps_lbl"], min_value=0.01, max_value=1.0,
-                               value=0.85, help=S["eps_help"])
-    h_ext    = st.number_input(S["hout_lbl"], min_value=1.0, value=10.0, help=S["hout_help"])
-
-    st.divider()
-    st.subheader("📄 " + ("Exportar Relatório" if lang=="pt" else "Export Report"))
-    pdf_ready = ('th_data' in st.session_state or 'hy_data' in st.session_state)
-    if pdf_ready:
-        if st.button("⬇️ " + ("Gerar e Baixar PDF" if lang=="pt" else "Generate & Download PDF"),
-                     type="primary", key="btn_pdf"):
-            global_params = {
-                'fluid': fluid_choice, 'd_inner': d_inner, 'D_outer': D_outer,
-                'L_pipe': L_pipe, 'rug_mm': rug_mm, 'dz_glob': dz_glob,
-                'eps_emit': eps_emit, 'h_ext': h_ext,
-            }
-            try:
-                pdf_bytes = build_report_pdf(
-                    lang,
-                    st.session_state.get('th_data'),
-                    st.session_state.get('hy_data'),
-                    global_params,
-                )
-                st.download_button(
-                    label="📥 " + ("Clique para baixar" if lang=="pt" else "Click to download"),
-                    data=pdf_bytes,
-                    file_name=f"Calibration_Lab_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf",
-                    key="dl_pdf",
-                )
-            except Exception as e:
-                st.error(f"Erro ao gerar PDF: {e}")
-    else:
-        st.caption("⚠️ " + ("Execute ao menos uma simulação para habilitar o relatório."
-                             if lang=="pt" else
-                             "Run at least one simulation to enable the report."))
-
-# ─────────────────────────────────────────────────────────────────────────────
-# HEADER
-# ─────────────────────────────────────────────────────────────────────────────
-st.title(S["app_title"])
-st.caption(S["app_caption"])
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TABS (no PID tab)
-# ─────────────────────────────────────────────────────────────────────────────
-tab_hy, tab_th, tab_bm, tab_mn = st.tabs([
-    S["tab_hy"], S["tab_th"], S["tab_bm"], S["tab_mn"]
-])
-
-# ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS & HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 SIGMA    = 5.670374419e-8
@@ -773,6 +682,99 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
     return buf.read()
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# SIDEBAR
+# ─────────────────────────────────────────────────────────────────────────────
+with st.sidebar:
+    lang = st.radio("🌐 Idioma / Language", ["pt", "en"],
+                    format_func=lambda x: "🇧🇷 Português" if x == "pt" else "🇺🇸 English",
+                    horizontal=True)
+    S = TR[lang]
+
+    st.header(S["sidebar_header"])
+    st.subheader(S["fluid_sub"])
+
+    use_manual = st.checkbox(S["manual_cb"], value=False)
+    if use_manual:
+        rho      = st.number_input(S["density"], min_value=100.0, value=850.0)
+        cp_fluid = st.number_input(S["cp"],      min_value=0.1,   value=2000.0)
+        k_fluid  = st.number_input(S["k_lbl"],   min_value=0.01,  value=0.12)
+        _mu      = st.number_input(S["mu_lbl"],  min_value=0.001, value=0.025)
+        viscosity_model = lambda Tf, m=_mu: m
+        fluid_choice = "Manual"
+    else:
+        FLUIDS = [
+            "KRD MAX 225 (11.4 - 40.8 cP)",
+            "KRD MAX 2205 (82.5 - 402 cP)",
+            "KRD MAX 685 (68.2 - 115.6 cP)",
+            "KRD MAX 55 (2.4 - 4.64 cP)",
+        ]
+        fluid_choice = st.selectbox(S["sel_fluid"], FLUIDS)
+        rho = 850.0; cp_fluid = 2000.0; k_fluid = 0.12
+        _vm = {
+            FLUIDS[0]: lambda Tf: 0.1651  * np.exp(-0.046 * Tf),
+            FLUIDS[1]: lambda Tf: 1.9133  * np.exp(-0.053 * Tf),
+            FLUIDS[2]: lambda Tf: 0.5933  * np.exp(-0.054 * Tf),
+            FLUIDS[3]: lambda Tf: -9e-08*Tf**3 + 1e-05*Tf**2 - 0.0007*Tf + 0.0165,
+        }
+        viscosity_model = _vm[fluid_choice]
+
+    st.subheader(S["pipe_sub"])
+    d_inner  = st.number_input(S["d_in"],    min_value=0.01, value=0.2571)
+    D_outer  = st.number_input(S["d_out"],   min_value=0.01, value=0.3238)
+    L_pipe   = st.number_input(S["L_p"],     min_value=1.0,  value=40.0)
+    rug_mm   = st.number_input(S["hy_rug"],  min_value=0.001, value=0.046, help=S["hy_rug_h"])
+    dz_glob  = st.number_input(S["hy_dz"],   value=2.0)
+    eps_emit = st.number_input(S["eps_lbl"], min_value=0.01, max_value=1.0,
+                               value=0.85, help=S["eps_help"])
+    h_ext    = st.number_input(S["hout_lbl"], min_value=1.0, value=10.0, help=S["hout_help"])
+
+    st.divider()
+    st.subheader("📄 " + ("Exportar Relatório" if lang=="pt" else "Export Report"))
+    pdf_ready = ('th_data' in st.session_state or 'hy_data' in st.session_state)
+    if pdf_ready:
+        if st.button("⬇️ " + ("Gerar e Baixar PDF" if lang=="pt" else "Generate & Download PDF"),
+                     type="primary", key="btn_pdf"):
+            global_params = {
+                'fluid': fluid_choice, 'd_inner': d_inner, 'D_outer': D_outer,
+                'L_pipe': L_pipe, 'rug_mm': rug_mm, 'dz_glob': dz_glob,
+                'eps_emit': eps_emit, 'h_ext': h_ext,
+            }
+            try:
+                pdf_bytes = build_report_pdf(
+                    lang,
+                    st.session_state.get('th_data'),
+                    st.session_state.get('hy_data'),
+                    global_params,
+                )
+                st.download_button(
+                    label="📥 " + ("Clique para baixar" if lang=="pt" else "Click to download"),
+                    data=pdf_bytes,
+                    file_name=f"Calibration_Lab_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    key="dl_pdf",
+                )
+            except Exception as e:
+                st.error(f"Erro ao gerar PDF: {e}")
+    else:
+        st.caption("⚠️ " + ("Execute ao menos uma simulação para habilitar o relatório."
+                             if lang=="pt" else
+                             "Run at least one simulation to enable the report."))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HEADER
+# ─────────────────────────────────────────────────────────────────────────────
+st.title(S["app_title"])
+st.caption(S["app_caption"])
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TABS (no PID tab)
+# ─────────────────────────────────────────────────────────────────────────────
+tab_hy, tab_th, tab_bm, tab_mn = st.tabs([
+    S["tab_hy"], S["tab_th"], S["tab_bm"], S["tab_mn"]
+])
 
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_th:
