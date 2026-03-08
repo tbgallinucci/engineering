@@ -374,24 +374,29 @@ with st.sidebar:
     st.subheader("📄 " + ("Exportar Relatório" if lang=="pt" else "Export Report"))
     pdf_ready = ('th_data' in st.session_state or 'hy_data' in st.session_state)
     if pdf_ready:
-        global_params = {
-            'fluid': fluid_choice, 'd_inner': d_inner, 'D_outer': D_outer,
-            'L_pipe': L_pipe, 'rug_mm': rug_mm, 'dz_glob': dz_glob,
-            'eps_emit': eps_emit, 'h_ext': h_ext,
-        }
-        pdf_bytes = build_report_pdf(
-            lang,
-            st.session_state.get('th_data'),
-            st.session_state.get('hy_data'),
-            global_params,
-        )
-        st.download_button(
-            label="⬇️ " + ("Baixar Relatório PDF" if lang=="pt" else "Download PDF Report"),
-            data=pdf_bytes,
-            file_name=f"Calibration_Lab_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-            mime="application/pdf",
-            type="primary",
-        )
+        if st.button("⬇️ " + ("Gerar e Baixar PDF" if lang=="pt" else "Generate & Download PDF"),
+                     type="primary", key="btn_pdf"):
+            global_params = {
+                'fluid': fluid_choice, 'd_inner': d_inner, 'D_outer': D_outer,
+                'L_pipe': L_pipe, 'rug_mm': rug_mm, 'dz_glob': dz_glob,
+                'eps_emit': eps_emit, 'h_ext': h_ext,
+            }
+            try:
+                pdf_bytes = build_report_pdf(
+                    lang,
+                    st.session_state.get('th_data'),
+                    st.session_state.get('hy_data'),
+                    global_params,
+                )
+                st.download_button(
+                    label="📥 " + ("Clique para baixar" if lang=="pt" else "Click to download"),
+                    data=pdf_bytes,
+                    file_name=f"Calibration_Lab_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    key="dl_pdf",
+                )
+            except Exception as e:
+                st.error(f"Erro ao gerar PDF: {e}")
     else:
         st.caption("⚠️ " + ("Execute ao menos uma simulação para habilitar o relatório."
                              if lang=="pt" else
