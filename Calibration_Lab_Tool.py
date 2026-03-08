@@ -11,6 +11,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import io
 import math
+from datetime import datetime
 
 st.set_page_config(
     page_title="Calibration Lab Sizing Tool",
@@ -369,6 +370,33 @@ with st.sidebar:
                                value=0.85, help=S["eps_help"])
     h_ext    = st.number_input(S["hout_lbl"], min_value=1.0, value=10.0, help=S["hout_help"])
 
+    st.divider()
+    st.subheader("📄 " + ("Exportar Relatório" if lang=="pt" else "Export Report"))
+    pdf_ready = ('th_data' in st.session_state or 'hy_data' in st.session_state)
+    if pdf_ready:
+        global_params = {
+            'fluid': fluid_choice, 'd_inner': d_inner, 'D_outer': D_outer,
+            'L_pipe': L_pipe, 'rug_mm': rug_mm, 'dz_glob': dz_glob,
+            'eps_emit': eps_emit, 'h_ext': h_ext,
+        }
+        pdf_bytes = build_report_pdf(
+            lang,
+            st.session_state.get('th_data'),
+            st.session_state.get('hy_data'),
+            global_params,
+        )
+        st.download_button(
+            label="⬇️ " + ("Baixar Relatório PDF" if lang=="pt" else "Download PDF Report"),
+            data=pdf_bytes,
+            file_name=f"Calibration_Lab_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+            mime="application/pdf",
+            type="primary",
+        )
+    else:
+        st.caption("⚠️ " + ("Execute ao menos uma simulação para habilitar o relatório."
+                             if lang=="pt" else
+                             "Run at least one simulation to enable the report."))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # HEADER
 # ─────────────────────────────────────────────────────────────────────────────
@@ -502,7 +530,245 @@ def hm(h):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 1 – THERMAL SIMULATION
+# PDF REPORT BUILDER
+# ─────────────────────────────────────────────────────────────────────────────
+def build_report_pdf(lang, th_data, hy_data, global_params):
+    """
+    Build a PDF report in memory and return bytes.
+    th_data  : dict with thermal simulation results (or None)
+    hy_data  : dict with hydraulic results (or None)
+    global_params: dict with system-level inputs
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                    Table, TableStyle, HRFlowable,
+                                    Image as RLImage, PageBreak)
+    import tempfile, os
+
+    PT = lang == "pt"
+
+    # ── Styles ────────────────────────────────────────────────────────────────
+    styles = getSampleStyleSheet()
+    style_title   = ParagraphStyle('ReportTitle', fontSize=18, fontName='Helvetica-Bold',
+                                   spaceAfter=6, alignment=TA_CENTER)
+    style_subtitle= ParagraphStyle('Subtitle', fontSize=10, fontName='Helvetica',
+                                   textColor=colors.HexColor('#555555'),
+                                   spaceAfter=14, alignment=TA_CENTER)
+    style_h1      = ParagraphStyle('H1', fontSize=13, fontName='Helvetica-Bold',
+                                   spaceBefore=14, spaceAfter=6,
+                                   textColor=colors.HexColor('#1a3a5c'))
+    style_h2      = ParagraphStyle('H2', fontSize=11, fontName='Helvetica-Bold',
+                                   spaceBefore=10, spaceAfter=4,
+                                   textColor=colors.HexColor('#2c5f8a'))
+    style_body    = ParagraphStyle('Body', fontSize=9, fontName='Helvetica',
+                                   spaceAfter=4, leading=14)
+    style_small   = ParagraphStyle('Small', fontSize=8, fontName='Helvetica',
+                                   textColor=colors.HexColor('#666666'), spaceAfter=2)
+
+    # ── Table style helper ────────────────────────────────────────────────────
+    def tbl_style(header_color='#1a3a5c'):
+        return TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor(header_color)),
+            ('TEXTCOLOR',  (0,0), (-1,0), colors.white),
+            ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0,0), (-1,0), 8),
+            ('FONTNAME',   (0,1), (-1,-1), 'Helvetica'),
+            ('FONTSIZE',   (0,1), (-1,-1), 8),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f0f4f8')]),
+            ('GRID',       (0,0), (-1,-1), 0.3, colors.HexColor('#cccccc')),
+            ('ALIGN',      (1,1), (-1,-1), 'CENTER'),
+            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ])
+
+    # ── Plotly fig → PNG → ReportLab Image (requires kaleido) ─────────────────
+    def fig_to_rl_image(fig, width_mm=170, height_mm=90):
+        try:
+            fig.update_layout(width=1000, height=500, margin=dict(l=40,r=40,t=50,b=40))
+            img_bytes = fig.to_image(format='png', scale=2)
+            buf = io.BytesIO(img_bytes)
+            return RLImage(buf, width=width_mm*mm, height=height_mm*mm)
+        except Exception:
+            msg = ("[Gráfico indisponível — instale kaleido: pip install kaleido]"
+                   if PT else
+                   "[Chart unavailable — install kaleido: pip install kaleido]")
+            return Paragraph(msg, style_small)
+
+    # ── Document ──────────────────────────────────────────────────────────────
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            leftMargin=20*mm, rightMargin=20*mm,
+                            topMargin=20*mm, bottomMargin=20*mm)
+    story = []
+    W = A4[0] - 40*mm   # usable width
+
+    # ── Cover / Header ────────────────────────────────────────────────────────
+    story.append(Paragraph("🏭 Calibration Lab Sizing Tool", style_title))
+    caption = ("Relatório de Dimensionamento — Laboratório de Calibração de Medidores de Óleo"
+               if PT else
+               "Sizing Report — Oil Meter Calibration Laboratory")
+    story.append(Paragraph(caption, style_subtitle))
+    story.append(Paragraph(
+        f"{'Gerado em' if PT else 'Generated'}: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        style_small))
+    story.append(HRFlowable(width='100%', thickness=1.5,
+                            color=colors.HexColor('#1a3a5c'), spaceAfter=10))
+
+    # ── 1. Global Parameters ──────────────────────────────────────────────────
+    gp = global_params
+    story.append(Paragraph("1. " + ("Parâmetros Globais do Sistema" if PT else "Global System Parameters"), style_h1))
+
+    gp_rows = [
+        [("Fluido" if PT else "Fluid"), gp['fluid'],
+         ("Diâmetro interno" if PT else "Inner diameter"), f"{gp['d_inner']:.4f} m"],
+        [("Diâmetro externo" if PT else "Outer diameter"), f"{gp['D_outer']:.4f} m",
+         ("Comprimento total" if PT else "Total length"), f"{gp['L_pipe']:.1f} m"],
+        [("Rugosidade" if PT else "Roughness"), f"{gp['rug_mm']:.3f} mm",
+         ("Desnível estático" if PT else "Static head"), f"{gp['dz_glob']:.1f} m"],
+        [("Emissividade" if PT else "Emissivity"), f"{gp['eps_emit']:.2f}",
+         ("Convecção externa" if PT else "External conv."), f"{gp['h_ext']:.1f} W/m²·K"],
+    ]
+    t = Table(gp_rows, colWidths=[W*0.22, W*0.28, W*0.22, W*0.28])
+    t.setStyle(TableStyle([
+        ('FONTNAME',  (0,0), (-1,-1), 'Helvetica'),
+        ('FONTSIZE',  (0,0), (-1,-1), 8),
+        ('FONTNAME',  (0,0), (0,-1), 'Helvetica-Bold'),
+        ('FONTNAME',  (2,0), (2,-1), 'Helvetica-Bold'),
+        ('ROWBACKGROUNDS', (0,0), (-1,-1), [colors.white, colors.HexColor('#f0f4f8')]),
+        ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#cccccc')),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+    ]))
+    story.append(t)
+
+    # ── 2. Thermal Simulation ─────────────────────────────────────────────────
+    if th_data:
+        story.append(Paragraph("2. " + ("Simulação Térmica" if PT else "Thermal Simulation"), style_h1))
+
+        story.append(Paragraph("2.1 " + ("Parâmetros de Entrada" if PT else "Input Parameters"), style_h2))
+        inp_rows = [
+            [("Volume total" if PT else "Total volume"), f"{th_data['vol_m3']:.1f} m³",
+             ("Temp. ambiente" if PT else "Ambient temp."), f"{th_data['T_amb']:.1f} °C"],
+            [("Viscosidade nominal" if PT else "Nominal viscosity"), f"{th_data['mu_nom_cP']:.1f} cP",
+             ("Tempo simulação" if PT else "Simulation time"), f"{th_data['t_sim_h']:.1f} h"],
+        ]
+        ph_rows = [
+            [("" if PT else ""),
+             ("Fase Aquecimento" if PT else "Heating Phase"),
+             ("Fase Calibração" if PT else "Calibration Phase")],
+            [("Potência bomba" if PT else "Pump power"),
+             f"{th_data['P_heat']:.1f} kW", f"{th_data['P_cal']:.1f} kW"],
+            [("Vazão" if PT else "Flow rate"),
+             f"{th_data['Q_heat']:.0f} m³/h", f"{th_data['Q_cal']:.0f} m³/h"],
+            [("Eficiência" if PT else "Efficiency"),
+             f"{th_data['ef_heat']:.0f}%", f"{th_data['ef_cal']:.0f}%"],
+        ]
+        ti = Table(inp_rows, colWidths=[W*0.25, W*0.25, W*0.25, W*0.25])
+        ti.setStyle(tbl_style())
+        story.append(ti)
+        story.append(Spacer(1, 4))
+        tp = Table(ph_rows, colWidths=[W*0.35, W*0.325, W*0.325])
+        tp.setStyle(tbl_style())
+        story.append(tp)
+
+        story.append(Paragraph("2.2 " + ("Resultados" if PT else "Results"), style_h2))
+        res_rows = [
+            [("Parâmetro" if PT else "Parameter"), ("Valor" if PT else "Value")],
+            [("Viscosidade alvo" if PT else "Target viscosity"),    f"{th_data['mu_nom_cP']:.1f} cP"],
+            [("Temperatura alvo (100% µ)" if PT else "Target temp. (100% µ)"),
+             f"{th_data['Tnom']:.1f} °C" if th_data['Tnom'] else "N/A"],
+            [("T início calibração (110% µ)" if PT else "Calib. start temp (110% µ)"),
+             f"{th_data['T110']:.1f} °C"],
+            [("T fim calibração (90% µ)" if PT else "Calib. end temp (90% µ)"),
+             f"{th_data['T90']:.1f} °C" if th_data['T90'] else "N/A"],
+            [("Temperatura de equilíbrio" if PT else "Equilibrium temperature"),
+             f"{th_data['T_eq']:.1f} °C"],
+            [("Tempo de aquecimento" if PT else "Heating time"),    hm(th_data['t110_h'])],
+            [("Janela de calibração" if PT else "Calibration window"),
+             hm(th_data['cwin_h']) if th_data['cwin_h'] else ("Não atingida" if PT else "Not reached")],
+        ]
+        tr = Table(res_rows, colWidths=[W*0.6, W*0.4])
+        tr.setStyle(tbl_style())
+        story.append(tr)
+
+        story.append(Paragraph("2.3 " + ("Curva de Temperatura" if PT else "Temperature Curve"), style_h2))
+        story.append(fig_to_rl_image(th_data['fig'], width_mm=170, height_mm=85))
+
+    # ── 3. Hydraulic / System Curve ───────────────────────────────────────────
+    if hy_data:
+        story.append(PageBreak())
+        story.append(Paragraph("3. " + ("Curva do Sistema e Bomba" if PT else "System & Pump Curve"), style_h1))
+
+        story.append(Paragraph("3.1 " + ("Parâmetros Hidráulicos" if PT else "Hydraulic Parameters"), style_h2))
+        hy_inp = [
+            [("Fluido — densidade" if PT else "Fluid — density"), f"{hy_data['hy_rho']:.0f} kg/m³",
+             ("Viscosidade nominal" if PT else "Nominal viscosity"), f"{hy_data['hy_mu_cP']:.1f} cP"],
+            [("Vazão máxima" if PT else "Max flow rate"), f"{hy_data['hy_qmax']:.0f} m³/h",
+             ("Frequência nominal" if PT else "Nominal frequency"), f"{hy_data['pc_freq0']:.0f} Hz"],
+            [("Freq. mínima inversor" if PT else "VFD min freq."), f"{hy_data['pc_fmin']:.0f} Hz",
+             ("Freq. máxima inversor" if PT else "VFD max freq."), f"{hy_data['pc_fmax']:.0f} Hz"],
+        ]
+        th2 = Table(hy_inp, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
+        th2.setStyle(tbl_style())
+        story.append(th2)
+
+        story.append(Paragraph("3.2 " + ("Curva do Sistema e Pontos de Operação" if PT else "System Curve & Operating Points"), style_h2))
+        story.append(fig_to_rl_image(hy_data['fig'], width_mm=170, height_mm=95))
+
+        # Operating point tables
+        story.append(Paragraph("3.3 " + ("Pontos de Operação — Rotação Variável" if PT else "Operating Points — Variable Speed"), style_h2))
+        freq_labels = [
+            f"{hy_data['pc_fmin']:.0f} Hz ({'mín.' if PT else 'min'})",
+            f"{hy_data['pc_freq0']:.0f} Hz ({'nominal' if PT else 'rated'})",
+            f"{hy_data['pc_fmax']:.0f} Hz ({'máx.' if PT else 'max'})",
+        ]
+        op_header = [("Abertura" if PT else "Opening"),
+                     ("Vazão" if PT else "Flow"),
+                     ("Altura" if PT else "Head")]
+
+        op_col_w = W / 3 - 2*mm
+        op_tables = []
+        for fl, ops_t in zip(freq_labels, [hy_data['ops_fmin'], hy_data['ops_fnom'], hy_data['ops_fmax']]):
+            rows_op = [op_header]
+            for lbl, (q_op, h_op) in ops_t:
+                rows_op.append([
+                    lbl,
+                    f"{q_op:.0f} m³/h" if q_op is not None else "—",
+                    f"{h_op:.1f} m"    if h_op is not None else "—",
+                ])
+            tbl_op = Table(rows_op, colWidths=[op_col_w*0.3, op_col_w*0.35, op_col_w*0.35])
+            tbl_op.setStyle(tbl_style('#2c5f8a'))
+            op_tables.append([Paragraph(f"<b>{fl}</b>", style_small), tbl_op])
+
+        # Layout 3 tables side by side using a wrapper table
+        wrap = Table([[op_tables[0][0], op_tables[1][0], op_tables[2][0]],
+                      [op_tables[0][1], op_tables[1][1], op_tables[2][1]]],
+                     colWidths=[W/3, W/3, W/3])
+        wrap.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'),
+                                  ('LEFTPADDING', (0,0), (-1,-1), 2),
+                                  ('RIGHTPADDING', (0,0), (-1,-1), 2)]))
+        story.append(wrap)
+
+    # ── Footer note ───────────────────────────────────────────────────────────
+    story.append(Spacer(1, 12))
+    story.append(HRFlowable(width='100%', thickness=0.5,
+                            color=colors.HexColor('#aaaaaa'), spaceAfter=4))
+    footer = ("*Validar com cálculos detalhados antes da especificação final.*"
+              if PT else
+              "*Always validate with detailed engineering calculations before final specification.*")
+    story.append(Paragraph(footer, style_small))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_th:
     st.header(S["th_header"])
@@ -643,6 +909,16 @@ with tab_th:
             legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
             hovermode="x unified", template="plotly_white", height=520)
         st.plotly_chart(fig, use_container_width=True)
+
+        # Store results for PDF export
+        st.session_state['th_data'] = {
+            'vol_m3': vol_m3, 'T_amb': T_amb, 'mu_nom_cP': mu_nom_cP,
+            't_sim_h': t_sim_h, 'P_heat': P_heat, 'Q_heat': Q_heat,
+            'ef_heat': ef_heat, 'P_cal': P_cal, 'Q_cal': Q_cal, 'ef_cal': ef_cal,
+            'Tnom': Tnom, 'T90': T90, 'T110': T110, 'T_eq': T_eq,
+            't110_h': t110_h, 'cwin_h': cwin_h,
+            'fig': fig,
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -982,6 +1258,20 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             with tc3:
                 st.markdown(f"**{S['pump_fmax'].format(f=pc_fmax)}**")
                 st.dataframe(make_op_df(ops_fmax), use_container_width=True, hide_index=True)
+
+        # Store results for PDF export
+        def ops_as_list(ops_tuple):
+            o20_, ousr_, o100_ = ops_tuple
+            return [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]
+
+        st.session_state['hy_data'] = {
+            'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
+            'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
+            'ops_fmin': ops_as_list(ops_fmin),
+            'ops_fnom': ops_as_list(ops_fnom),
+            'ops_fmax': ops_as_list(ops_fmax),
+            'fig': fh,
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
