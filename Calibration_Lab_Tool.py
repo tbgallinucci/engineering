@@ -973,7 +973,7 @@ with tab_hy:
                                              label_visibility="collapsed", key=f"sve_{si}")
         seg['red_n'] = cols[6].number_input("red_n", value=seg['red_n'], min_value=0, step=1,
                                              label_visibility="collapsed", key=f"sredn_{si}")
-        seg['d_up']  = cols[7].number_input("d_up",  value=seg['d_up'],  min_value=seg['d'],
+        seg['d_up']  = cols[7].number_input("d_up",  value=seg['d_up'],  min_value=0.005,
                                              step=0.001, format="%.4f",
                                              label_visibility="collapsed", key=f"sdup_{si}")
 
