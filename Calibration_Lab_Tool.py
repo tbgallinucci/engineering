@@ -72,6 +72,9 @@ TR = {
         "r_Teq": "Temp. Equilíbrio",
         "r_th": "⏱ Tempo de Aquecimento",
         "r_cw": "📏 Janela de Calibração",
+        "r_eh": "⚡ Energia — Aquecimento",
+        "r_ec": "⚡ Energia — Calibração",
+        "r_et": "⚡ Energia Total",
         "na": "Não atingida",
         "pl_title": "Temperatura do Fluido vs Tempo",
         "pl_x": "Tempo (h)",
@@ -172,6 +175,19 @@ TR = {
         "bm_btn":"📋 Gerar BOM","bm_exp":"⬇️ Exportar BOM como CSV",
         "bm_ok":"✅ BOM gerada! Clique em 'Exportar BOM como CSV' para baixar.",
         "ct":"Tag","cd":"Descrição","cq":"Quantidade","cu":"Unidade","cs":"Especificação",
+        "seg_hdr": "Segmentos de Tubulação",
+        "seg_note": "ℹ️ Cada segmento representa um trecho com diâmetro diferente. Vazão Q é conservada em série — apenas a velocidade muda. Rugosidade e desnível são globais (barra lateral).",
+        "seg_add": "➕ Adicionar segmento",
+        "seg_del": "🗑️ Remover último",
+        "seg_dn":  "DN int. (m)",
+        "seg_L":   "L (m)",
+        "seg_c90": "Curvas 90°",
+        "seg_tee": "Tês",
+        "seg_ve":  "V.Esfera",
+        "seg_red": "Reduções",
+        "seg_dred":"D montante (m)",
+        "seg_lbl": "Segmento",
+        "seg_sum": "Σ comprimentos: {L:.1f} m | {n} segmento(s)",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -221,6 +237,9 @@ TR = {
         "r_Teq": "Equilibrium Temp.",
         "r_th": "⏱ Heating Time",
         "r_cw": "📏 Calibration Window",
+        "r_eh": "⚡ Energy — Heating",
+        "r_ec": "⚡ Energy — Calibration",
+        "r_et": "⚡ Total Energy",
         "na": "Not reached",
         "pl_title": "Fluid Temperature vs Time",
         "pl_x": "Time (h)", "pl_y": "Temperature (°C)",
@@ -320,6 +339,19 @@ TR = {
         "bm_btn":"📋 Generate BOM","bm_exp":"⬇️ Export BOM as CSV",
         "bm_ok":"✅ BOM generated! Click 'Export BOM as CSV' to download.",
         "ct":"Tag","cd":"Description","cq":"Quantity","cu":"Unit","cs":"Specification",
+        "seg_hdr": "Piping Segments",
+        "seg_note": "ℹ️ Each segment represents a pipe section with a different diameter. Flow Q is conserved in series — only velocity changes. Roughness and static head are global (sidebar).",
+        "seg_add": "➕ Add segment",
+        "seg_del": "🗑️ Remove last",
+        "seg_dn":  "Inner diam. (m)",
+        "seg_L":   "L (m)",
+        "seg_c90": "90° elbows",
+        "seg_tee": "Tees",
+        "seg_ve":  "Ball valves",
+        "seg_red": "Reductions",
+        "seg_dred":"Upstream D (m)",
+        "seg_lbl": "Segment",
+        "seg_sum": "Σ lengths: {L:.1f} m | {n} segment(s)",
     },
 }
 
@@ -398,45 +430,53 @@ def colebrook(Re, er):
     return f_lam_2300 + alpha * (f_turb_4000 - f_lam_2300)
 
 
-def head_loss(Q, d, rug, L, dz, c90, c45, tee, ve, vb_bloq, ctrl_valves, rho_f, mu_f):
+def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm):
     """
-    ctrl_valves: list of (Kv, opening_pct) tuples — parallel control valves.
-    vb_bloq: butterfly isolation valves (normally open, fixed K=0.5).
+    segments     : list of dicts with keys d, L, c90, tee, ve, red_n, d_up
+    dz           : static head (m) - global, applied once
+    ctrl_valves  : list of (Kv, opening_pct) - parallel control valves
+    rug_global_mm: absolute roughness in mm (global, same for all segments)
     """
     if Q <= 0:
         return 0, 0, 0, dz, 0
-        
-    V   = (Q/3600) / (math.pi*d**2/4)
-    Re  = rho_f*V*d/mu_f
-    f   = colebrook(Re, rug/d)
-    
-    # Perdas distribuídas e localizadas baseadas na linha principal
-    Hd  = f*(L/d)*V**2/(2*9.81)
-    Hl  = (c90*0.3 + c45*0.2 + tee*0.5 + ve*0.1 + vb_bloq*0.5)*V**2/(2*9.81)
-    
-    # === CÁLCULO DAS VÁLVULAS DE CONTROLE (PARALELO) ===
+
+    rug = rug_global_mm / 1000.0
+    Hd_total = 0.0
+    Hl_total = 0.0
+
+    for seg in segments:
+        d   = seg['d']
+        L   = seg['L']
+        V   = (Q / 3600.0) / (math.pi * d**2 / 4.0)
+        Re  = rho_f * V * d / mu_f
+        f   = colebrook(Re, rug / d)
+        Hd_total += f * (L / d) * V**2 / (2 * 9.81)
+        # Reduction K — contraction uses K=0.5*(1-(d/d_up)^2), expansion Borda-Carnot
+        K_red = 0.0
+        if seg.get('red_n', 0) > 0 and seg.get('d_up', 0) > d:
+            area_ratio = (d / seg['d_up']) ** 2  # A_small / A_large
+            # Contraction: K ref to small side velocity
+            K_red = 0.5 * (1.0 - area_ratio) * seg['red_n']
+        elif seg.get('red_n', 0) > 0 and seg.get('d_up', 0) < d:
+            # Expansion: Borda-Carnot, K ref to small side (upstream = smaller)
+            area_ratio = (seg['d_up'] / d) ** 2
+            K_red = (1.0 - area_ratio) ** 2 * seg['red_n']
+        K_seg = (seg['c90'] * 0.3 + seg['tee'] * 0.5 +
+                 seg['ve']  * 0.1 + K_red)
+        Hl_total += K_seg * V**2 / (2 * 9.81)
+
     Hc = 0.0
     Kv_eq = 0.0
     tem_valvula = False
-    
     for Kv, op in ctrl_valves:
         if Kv > 0:
             tem_valvula = True
             if op > 0:
-                # Soma os Kvs efetivos das linhas em paralelo que estão abertas
-                Kve = Kv * (op / 100.0) 
-                Kv_eq += Kve
-
+                Kv_eq += Kv * (op / 100.0)
     if tem_valvula:
-        if Kv_eq > 0:
-            # Calcula a perda de carga baseada no Kv equivalente do sistema paralelo
-            Hc = (Q / Kv_eq)**2 * (rho_f / 1000.0) * 1e5 / (rho_f * 9.81)
-        else:
-            # Se todas as válvulas estiverem 0% abertas, simula bloqueio total
-            Hc = 9999.0 
-            
-    # Retorna todos os 5 valores esperados pelo script
-    return Hd+Hl+dz+Hc, Hd, Hl, dz, Hc
+        Hc = (Q / Kv_eq)**2 * (rho_f / 1000.0) * 1e5 / (rho_f * 9.81) if Kv_eq > 0 else 9999.0
+
+    return Hd_total + Hl_total + dz + Hc, Hd_total, Hl_total, dz, Hc
 
 
 def hm(h):
@@ -495,6 +535,21 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f0f4f8')]),
             ('GRID',       (0,0), (-1,-1), 0.3, colors.HexColor('#cccccc')),
             ('ALIGN',      (1,1), (-1,-1), 'CENTER'),
+            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ])
+
+    def tbl_noheader():
+        """Table style with no distinct header row — all rows uniform."""
+        return TableStyle([
+            ('FONTNAME',   (0,0), (-1,-1), 'Helvetica'),
+            ('FONTSIZE',   (0,0), (-1,-1), 8),
+            ('FONTNAME',   (0,0), (0,-1), 'Helvetica-Bold'),
+            ('FONTNAME',   (2,0), (2,-1), 'Helvetica-Bold'),
+            ('ROWBACKGROUNDS', (0,0), (-1,-1), [colors.white, colors.HexColor('#f0f4f8')]),
+            ('GRID',       (0,0), (-1,-1), 0.3, colors.HexColor('#cccccc')),
+            ('ALIGN',      (1,0), (-1,-1), 'CENTER'),
             ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
             ('TOPPADDING', (0,0), (-1,-1), 3),
             ('BOTTOMPADDING', (0,0), (-1,-1), 3),
@@ -634,82 +689,29 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
     ]))
     story.append(t)
 
-    # ── 2. Thermal Simulation ─────────────────────────────────────────────────
-    if th_data:
-        story.append(Paragraph("2. " + ("Simulação Térmica" if PT else "Thermal Simulation"), style_h1))
-
-        story.append(Paragraph("2.1 " + ("Parâmetros de Entrada" if PT else "Input Parameters"), style_h2))
-        inp_rows = [
-            [("Volume total" if PT else "Total volume"), f"{th_data['vol_m3']:.1f} m³",
-             ("Temp. ambiente" if PT else "Ambient temp."), f"{th_data['T_amb']:.1f} °C"],
-            [("Viscosidade nominal" if PT else "Nominal viscosity"), f"{th_data['mu_nom_cP']:.1f} cP",
-             ("Tempo simulação" if PT else "Simulation time"), f"{th_data['t_sim_h']:.1f} h"],
-        ]
-        ph_rows = [
-            [("" if PT else ""),
-             ("Fase Aquecimento" if PT else "Heating Phase"),
-             ("Fase Calibração" if PT else "Calibration Phase")],
-            [("Potência bomba" if PT else "Pump power"),
-             f"{th_data['P_heat']:.1f} kW", f"{th_data['P_cal']:.1f} kW"],
-            [("Vazão" if PT else "Flow rate"),
-             f"{th_data['Q_heat']:.0f} m³/h", f"{th_data['Q_cal']:.0f} m³/h"],
-            [("Eficiência" if PT else "Efficiency"),
-             f"{th_data['ef_heat']:.0f}%", f"{th_data['ef_cal']:.0f}%"],
-        ]
-        ti = Table(inp_rows, colWidths=[W*0.25, W*0.25, W*0.25, W*0.25])
-        ti.setStyle(tbl_style())
-        story.append(ti)
-        story.append(Spacer(1, 4))
-        tp = Table(ph_rows, colWidths=[W*0.35, W*0.325, W*0.325])
-        tp.setStyle(tbl_style())
-        story.append(tp)
-
-        story.append(Paragraph("2.2 " + ("Resultados" if PT else "Results"), style_h2))
-        res_rows = [
-            [("Parâmetro" if PT else "Parameter"), ("Valor" if PT else "Value")],
-            [("Viscosidade alvo" if PT else "Target viscosity"),    f"{th_data['mu_nom_cP']:.1f} cP"],
-            [("Temperatura alvo (100% µ)" if PT else "Target temp. (100% µ)"),
-             f"{th_data['Tnom']:.1f} °C" if th_data['Tnom'] else "N/A"],
-            [("T início calibração (110% µ)" if PT else "Calib. start temp (110% µ)"),
-             f"{th_data['T110']:.1f} °C"],
-            [("T fim calibração (90% µ)" if PT else "Calib. end temp (90% µ)"),
-             f"{th_data['T90']:.1f} °C" if th_data['T90'] else "N/A"],
-            [("Temperatura de equilíbrio" if PT else "Equilibrium temperature"),
-             f"{th_data['T_eq']:.1f} °C"],
-            [("Tempo de aquecimento" if PT else "Heating time"),    hm(th_data['t110_h'])],
-            [("Janela de calibração" if PT else "Calibration window"),
-             hm(th_data['cwin_h']) if th_data['cwin_h'] else ("Não atingida" if PT else "Not reached")],
-        ]
-        tr = Table(res_rows, colWidths=[W*0.6, W*0.4])
-        tr.setStyle(tbl_style())
-        story.append(tr)
-
-        story.append(Paragraph("2.3 " + ("Curva de Temperatura" if PT else "Temperature Curve"), style_h2))
-        story.append(make_thermal_chart(th_data))
-
-    # ── 3. Hydraulic / System Curve ───────────────────────────────────────────
+    # ── 2. Hydraulic / System Curve ───────────────────────────────────────────
     if hy_data:
-        story.append(PageBreak())
-        story.append(Paragraph("3. " + ("Curva do Sistema e Bomba" if PT else "System & Pump Curve"), style_h1))
+        story.append(Paragraph("2. " + ("Curva do Sistema e Bomba" if PT else "System & Pump Curve"), style_h1))
 
-        story.append(Paragraph("3.1 " + ("Parâmetros Hidráulicos" if PT else "Hydraulic Parameters"), style_h2))
+        story.append(Paragraph("2.1 " + ("Parâmetros Hidráulicos" if PT else "Hydraulic Parameters"), style_h2))
         hy_inp = [
             [("Fluido — densidade" if PT else "Fluid — density"), f"{hy_data['hy_rho']:.0f} kg/m³",
              ("Viscosidade nominal" if PT else "Nominal viscosity"), f"{hy_data['hy_mu_cP']:.1f} cP"],
             [("Vazão máxima" if PT else "Max flow rate"), f"{hy_data['hy_qmax']:.0f} m³/h",
              ("Frequência nominal" if PT else "Nominal frequency"), f"{hy_data['pc_freq0']:.0f} Hz"],
             [("Freq. mínima inversor" if PT else "VFD min freq."), f"{hy_data['pc_fmin']:.0f} Hz",
-             ("Freq. máxima inversor" if PT else "VFD max freq."), f"{hy_data['pc_fmax']:.0f} Hz"],
+             ("Rugosidade global" if PT else "Global roughness"), f"{hy_data.get('rug_mm', 0.046):.3f} mm"],
         ]
         th2 = Table(hy_inp, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
-        th2.setStyle(tbl_style())
+        th2.setStyle(tbl_noheader())
         story.append(th2)
 
-        story.append(Paragraph("3.2 " + ("Curva do Sistema e Pontos de Operação" if PT else "System Curve & Operating Points"), style_h2))
+
+        story.append(Paragraph("2.2 " + ("Curva do Sistema e Pontos de Operação" if PT else "System Curve & Operating Points"), style_h2))
         story.append(make_hydraulic_chart(hy_data))
 
         # Operating point tables
-        story.append(Paragraph("3.3 " + ("Pontos de Operação — Rotação Variável" if PT else "Operating Points — Variable Speed"), style_h2))
+        story.append(Paragraph("2.3 " + ("Pontos de Operação — Rotação Variável" if PT else "Operating Points — Variable Speed"), style_h2))
         freq_labels = [
             f"{hy_data['pc_fmin']:.0f} Hz ({'mín.' if PT else 'min'})",
             f"{hy_data['pc_freq0']:.0f} Hz ({'nominal' if PT else 'rated'})",
@@ -741,6 +743,66 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
                                   ('LEFTPADDING', (0,0), (-1,-1), 2),
                                   ('RIGHTPADDING', (0,0), (-1,-1), 2)]))
         story.append(wrap)
+
+    story.append(PageBreak())
+    # ── 3. Thermal Simulation ─────────────────────────────────────────────────
+    if th_data:
+        story.append(Paragraph("3. " + ("Simulação Térmica" if PT else "Thermal Simulation"), style_h1))
+
+        story.append(Paragraph("3.1 " + ("Parâmetros de Entrada" if PT else "Input Parameters"), style_h2))
+        inp_rows = [
+            [("Volume total" if PT else "Total volume"), f"{th_data['vol_m3']:.1f} m³",
+             ("Temp. ambiente" if PT else "Ambient temp."), f"{th_data['T_amb']:.1f} °C"],
+            [("Viscosidade nominal" if PT else "Nominal viscosity"), f"{th_data['mu_nom_cP']:.1f} cP",
+             ("Tempo simulação" if PT else "Simulation time"), f"{th_data['t_sim_h']:.1f} h"],
+        ]
+        ph_rows = [
+            [("" if PT else ""),
+             ("Fase Aquecimento" if PT else "Heating Phase"),
+             ("Fase Calibração" if PT else "Calibration Phase")],
+            [("Potência bomba" if PT else "Pump power"),
+             f"{th_data['P_heat']:.1f} kW", f"{th_data['P_cal']:.1f} kW"],
+            [("Vazão" if PT else "Flow rate"),
+             f"{th_data['Q_heat']:.0f} m³/h", f"{th_data['Q_cal']:.0f} m³/h"],
+            [("Eficiência" if PT else "Efficiency"),
+             f"{th_data['ef_heat']:.0f}%", f"{th_data['ef_cal']:.0f}%"],
+        ]
+        ti = Table(inp_rows, colWidths=[W*0.25, W*0.25, W*0.25, W*0.25])
+        ti.setStyle(tbl_noheader())
+        story.append(ti)
+        story.append(Spacer(1, 4))
+        tp = Table(ph_rows, colWidths=[W*0.35, W*0.325, W*0.325])
+        tp.setStyle(tbl_noheader())
+        story.append(tp)
+
+        story.append(Paragraph("3.2 " + ("Resultados" if PT else "Results"), style_h2))
+        res_rows = [
+            [("Parâmetro" if PT else "Parameter"), ("Valor" if PT else "Value")],
+            [("Viscosidade alvo" if PT else "Target viscosity"),    f"{th_data['mu_nom_cP']:.1f} cP"],
+            [("Temperatura alvo (100% µ)" if PT else "Target temp. (100% µ)"),
+             f"{th_data['Tnom']:.1f} °C" if th_data['Tnom'] else "N/A"],
+            [("T início calibração (110% µ)" if PT else "Calib. start temp (110% µ)"),
+             f"{th_data['T110']:.1f} °C"],
+            [("T fim calibração (90% µ)" if PT else "Calib. end temp (90% µ)"),
+             f"{th_data['T90']:.1f} °C" if th_data['T90'] else "N/A"],
+            [("Temperatura de equilíbrio" if PT else "Equilibrium temperature"),
+             f"{th_data['T_eq']:.1f} °C"],
+            [("Tempo de aquecimento" if PT else "Heating time"),    hm(th_data['t110_h'])],
+            [("Janela de calibração" if PT else "Calibration window"),
+             hm(th_data['cwin_h']) if th_data['cwin_h'] else ("Não atingida" if PT else "Not reached")],
+            [("Energia — aquecimento" if PT else "Energy — heating"),
+             f"{th_data['E_heat']:.1f} kWh"],
+            [("Energia — calibração" if PT else "Energy — calibration"),
+             f"{th_data['E_cal']:.1f} kWh" if th_data['E_cal'] is not None else ("Não atingida" if PT else "Not reached")],
+            [("Energia total" if PT else "Total energy"),
+             f"{th_data['E_total']:.1f} kWh" if th_data['E_total'] is not None else "—"],
+        ]
+        tr = Table(res_rows, colWidths=[W*0.6, W*0.4])
+        tr.setStyle(tbl_style())
+        story.append(tr)
+
+        story.append(Paragraph("3.3 " + ("Curva de Temperatura" if PT else "Temperature Curve"), style_h2))
+        story.append(make_thermal_chart(th_data))
 
     # ── Footer note ───────────────────────────────────────────────────────────
     story.append(Spacer(1, 12))
@@ -846,198 +908,81 @@ st.caption(S["app_caption"])
 # ─────────────────────────────────────────────────────────────────────────────
 # TABS (no PID tab)
 # ─────────────────────────────────────────────────────────────────────────────
-tab_hy, tab_th, tab_bm, tab_mn = st.tabs([
-    S["tab_hy"], S["tab_th"], S["tab_bm"], S["tab_mn"]
+tab_hy, tab_th, tab_mn = st.tabs([
+    S["tab_hy"], S["tab_th"], S["tab_mn"]
 ])
-
-# ─────────────────────────────────────────────────────────────────────────────
-with tab_th:
-    st.header(S["th_header"])
-
-    # Row 1: System Data (full width, 4 columns)
-    st.subheader(S["sys_data"])
-    s1, s2, s3, s4 = st.columns(4)
-    vol_m3     = s1.number_input(S["vol"],    min_value=0.1, value=10.0)
-    T_amb      = s2.number_input(S["tamb"],   value=25.0)
-    mu_nom_cP  = s3.number_input(S["mu_nom"], value=25.0, min_value=0.01)
-    t_sim_h    = s4.number_input(S["tsim"],   min_value=0.1, value=10.0)
-
-    st.divider()
-
-    # Row 2: Heating | Calibration (side by side, below System Data)
-    ph1, ph2 = st.columns(2)
-    with ph1:
-        st.subheader(S["heat_ph"])
-        P_heat  = st.number_input(S["p_kw"],  min_value=0.1, value=69.0, key="P_h", help=S["p_kw_help"])
-        Q_heat  = st.number_input(S["q_ph"],  min_value=0.1, value=550.0, key="Q_h")
-        ef_heat = st.number_input(S["eff"],   min_value=1.0, max_value=100.0, value=58.0, key="ef_h")
-        hf_heat = st.number_input(S["hf"],    min_value=0.0, value=1.0, step=0.05, key="hf_h", help=S["hf_help"])
-    with ph2:
-        st.subheader(S["calib_ph"])
-        P_cal   = st.number_input(S["p_kw"],  min_value=0.1, value=69.0, key="P_c", help=S["p_kw_help"])
-        Q_cal   = st.number_input(S["q_ph"],  min_value=0.1, value=550.0, key="Q_c")
-        ef_cal  = st.number_input(S["eff"],   min_value=1.0, max_value=100.0, value=58.0, key="ef_c")
-        hf_cal  = st.number_input(S["hf"],    min_value=0.0, value=1.0, step=0.05, key="hf_c", help=S["hf_help"])
-
-    st.divider()
-
-    if st.button(S["run"], type="primary"):
-
-        mu_110_pa = mu_nom_cP * 1.1 / 1000.0
-        mu_90_pa  = mu_nom_cP * 0.9 / 1000.0
-        T110 = solve_visc_temp(viscosity_model, mu_110_pa)
-        T90  = solve_visc_temp(viscosity_model, mu_90_pa)
-        Tnom = solve_visc_temp(viscosity_model, mu_nom_cP / 1000.0)
-
-        if T110 is None or T90 is None:
-            st.error(S["err_mu"]); st.stop()
-
-        # Heating phase
-        # W_pump constant; F_flow affects thermal resistance path
-        W_heat  = P_heat  * (ef_heat/100) * hf_heat * 1000.0   # W
-        F_heat  = Q_heat  / 3600.0                              # m³/s
-        m_fluid = vol_m3  * rho
-
-        dt    = 1.0
-        t_max = t_sim_h * 3600.0
-        time  = np.arange(0, t_max, dt)
-        Tf_h  = np.zeros(len(time)); Tf_h[0] = T_amb
-
-        for i in range(1, len(time)):
-            dTdt = euler_step(Tf_h[i-1], T_amb, F_heat, W_heat,
-                              rho, cp_fluid, k_fluid,
-                              d_inner, D_outer, L_pipe,
-                              eps_emit, h_ext, m_fluid)
-            Tf_h[i] = Tf_h[i-1] + dTdt * dt
-
-        idx110 = np.where(Tf_h >= T110)[0]
-        if len(idx110) == 0:
-            st.warning(S["warn_110"]); st.stop()
-
-        t110_s  = time[idx110[0]]
-        T110_v  = Tf_h[idx110[0]]
-        t110_h  = t110_s / 3600.0
-        mask_h  = time <= t110_s
-        t_hp    = time[mask_h]; T_hp = Tf_h[mask_h]
-
-        # Calibration phase
-        W_cal  = P_cal * (ef_cal/100) * hf_cal * 1000.0
-        F_cal  = Q_cal / 3600.0
-
-        tc     = np.arange(t110_s, t_max, dt)
-        Tf_c   = np.zeros(len(tc)); Tf_c[0] = T110_v
-
-        for i in range(1, len(tc)):
-            dTdt = euler_step(Tf_c[i-1], T_amb, F_cal, W_cal,
-                              rho, cp_fluid, k_fluid,
-                              d_inner, D_outer, L_pipe,
-                              eps_emit, h_ext, m_fluid)
-            Tf_c[i] = Tf_c[i-1] + dTdt * dt
-
-        T_eq  = Tf_c[-1]
-        idx90 = np.where(Tf_c >= T90)[0]
-        if len(idx90) > 0:
-            t90_s = tc[idx90[0]]; T90_v = Tf_c[idx90[0]]
-            t90_h = t90_s / 3600.0; cwin_h = t90_h - t110_h
-        else:
-            t90_h = T90_v = cwin_h = None
-
-        # ── Results row 1: viscosities & temperatures (5 metrics) ──
-        st.subheader(S["res_hdr"])
-        r1, r2, r3, r4, r5 = st.columns(5)
-        r1.metric(S["r_mu"],  f"{mu_nom_cP:.1f} cP")
-        r2.metric(S["r_Tt"],  f"{Tnom:.1f} °C" if Tnom else "N/A")
-        r3.metric(S["r_T90"], f"{T90:.1f} °C"  if T90  else "N/A")
-        r4.metric(S["r_T110"],f"{T110:.1f} °C")
-        r5.metric(S["r_Teq"], f"{T_eq:.1f} °C")
-
-        # ── Results row 2: timing (2 metrics) ──
-        t1, t2 = st.columns(2)
-        t1.metric(S["r_th"], hm(t110_h))
-        t2.metric(S["r_cw"], hm(cwin_h) if cwin_h is not None else S["na"])
-
-        # ── Plot ──
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=t_hp/3600, y=T_hp, mode='lines',
-            name=S["tr_heat"], line=dict(color='orangered', width=2.5)))
-        fig.add_trace(go.Scatter(x=tc/3600, y=Tf_c, mode='lines',
-            name=S["tr_calib"], line=dict(color='royalblue', width=2.5)))
-
-        xf = [0, t_sim_h]
-        fig.add_trace(go.Scatter(x=xf, y=[T_eq,T_eq], mode='lines',
-            name=f'T_eq={T_eq:.1f}°C', line=dict(color='orangered', dash='dash')))
-        fig.add_trace(go.Scatter(x=xf, y=[T110,T110], mode='lines',
-            name=f'T 110%µ={T110:.1f}°C', line=dict(color='purple', dash='dot')))
-        fig.add_trace(go.Scatter(x=[t110_h,t110_h], y=[T_amb-5, T_eq+10], mode='lines',
-            name=f't₁₁₀={hm(t110_h)}', line=dict(color='purple', dash='dot')))
-        fig.add_trace(go.Scatter(x=[t110_h], y=[T110_v], mode='markers',
-            marker=dict(color='purple', size=9), showlegend=False))
-
-        if T90 is not None:
-            fig.add_trace(go.Scatter(x=xf, y=[T90,T90], mode='lines',
-                name=f'T 90%µ={T90:.1f}°C', line=dict(color='green', dash='dot')))
-        if t90_h is not None:
-            fig.add_trace(go.Scatter(x=[t90_h,t90_h], y=[T_amb-5, T_eq+10], mode='lines',
-                name=f't₉₀={hm(t90_h)}', line=dict(color='green', dash='dot')))
-            fig.add_trace(go.Scatter(x=[t90_h], y=[T90_v], mode='markers',
-                marker=dict(color='green', size=9), showlegend=False))
-            fig.add_vrect(x0=t110_h, x1=t90_h, fillcolor="green", opacity=0.07,
-                          layer="below", line_width=0,
-                          annotation_text=S["cw_lbl"], annotation_position="top left")
-
-        fig.update_layout(
-            title=S["pl_title"], xaxis_title=S["pl_x"], yaxis_title=S["pl_y"],
-            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
-            hovermode="x unified", template="plotly_white", height=520)
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Store results for PDF export
-        st.session_state['th_data'] = {
-            'vol_m3': vol_m3, 'T_amb': T_amb, 'mu_nom_cP': mu_nom_cP,
-            't_sim_h': t_sim_h, 'P_heat': P_heat, 'Q_heat': Q_heat,
-            'ef_heat': ef_heat, 'P_cal': P_cal, 'Q_cal': Q_cal, 'ef_cal': ef_cal,
-            'Tnom': Tnom, 'T90': T90, 'T110': T110, 'T_eq': T_eq,
-            't110_h': t110_h, 'cwin_h': cwin_h,
-            # raw arrays for PDF chart (no kaleido needed)
-            't_hp': t_hp / 3600.0, 'T_hp': T_hp,
-            'tc_h': tc / 3600.0,   'Tf_c': Tf_c,
-            't90_h': t90_h, 'T90_v': T90_v if t90_h is not None else None,
-            'T110_v': T110_v,
-        }
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2 – HYDRAULIC SYSTEM CURVE
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_hy:
     st.header(S["hy_header"])
-    st.subheader(S["hy_pipe"])
-    st.info(S["hy_global_note"])
 
-    # Show current global pipe params (read-only reference)
-    pg1, pg2, pg3, pg4, pg5 = st.columns(5)
-    pg1.metric(S["d_in"],  f"{d_inner:.4f} m")
-    pg2.metric(S["d_out"], f"{D_outer:.4f} m")
-    pg3.metric(S["L_p"],   f"{L_pipe:.1f} m")
-    pg4.metric(S["hy_rug"], f"{rug_mm:.3f} mm")
-    pg5.metric(S["hy_dz"],  f"{dz_glob:.1f} m")
+    # ── Segment table ──────────────────────────────────────────────────────────
+    st.subheader(S["seg_hdr"])
+    st.info(S["seg_note"])
 
-    # Use global values directly
-    hy_d  = d_inner
-    hy_rg = rug_mm / 1000.0
-    hy_L  = L_pipe
+    # Global params displayed as read-only reference
+    g1, g2, g3 = st.columns(3)
+    g1.metric(S["hy_rug"], f"{rug_mm:.3f} mm")
+    g2.metric(S["hy_dz"],  f"{dz_glob:.1f} m")
+    g3.metric(S["d_out"],  f"{D_outer:.4f} m  (térmica)" if lang=="pt" else f"{D_outer:.4f} m  (thermal)")
+
+    # Session-state segment list
+    # red_n = number of reductions INTO this segment; d_up = upstream diameter for K calc
+    _SEG_DEFAULTS = [
+        {'d': d_inner, 'L': L_pipe, 'c90': 4, 'tee': 2, 've': 3, 'red_n': 0, 'd_up': 0.30},
+    ]
+    if 'hy_segments' not in st.session_state:
+        st.session_state['hy_segments'] = [s.copy() for s in _SEG_DEFAULTS]
+
+    # Add / remove buttons
+    ba, bb = st.columns(2)
+    if ba.button(S["seg_add"], key="seg_add_btn"):
+        prev = st.session_state['hy_segments'][-1]
+        st.session_state['hy_segments'].append(
+            {'d': prev['d'], 'L': 10.0, 'c90': 0, 'tee': 0, 've': 0, 'red_n': 0, 'd_up': prev['d']*1.25})
+        st.rerun()
+    if bb.button(S["seg_del"], key="seg_del_btn",
+                 disabled=len(st.session_state['hy_segments']) <= 1):
+        st.session_state['hy_segments'].pop()
+        st.rerun()
+
+    # Render one row per segment
+    # Cols: #label | d | L | c90 | tee | ve | red_n | d_up
+    COL_W = [0.07, 0.12, 0.10, 0.10, 0.10, 0.10, 0.10, 0.14]
+    hdr = st.columns(COL_W)
+    for h, lbl in zip(hdr, [S["seg_lbl"], S["seg_dn"], S["seg_L"],
+                              S["seg_c90"], S["seg_tee"], S["seg_ve"],
+                              S["seg_red"], S["seg_dred"]]):
+        h.markdown(f"**{lbl}**")
+
+    for si, seg in enumerate(st.session_state['hy_segments']):
+        cols = st.columns(COL_W)
+        cols[0].markdown(f"**#{si+1}**")
+        seg['d']     = cols[1].number_input("d",     value=seg['d'],     min_value=0.005,
+                                             step=0.001, format="%.4f",
+                                             label_visibility="collapsed", key=f"sd_{si}")
+        seg['L']     = cols[2].number_input("L",     value=seg['L'],     min_value=0.0,
+                                             label_visibility="collapsed", key=f"sL_{si}")
+        seg['c90']   = cols[3].number_input("c90",   value=seg['c90'],   min_value=0, step=1,
+                                             label_visibility="collapsed", key=f"sc90_{si}")
+        seg['tee']   = cols[4].number_input("tee",   value=seg['tee'],   min_value=0, step=1,
+                                             label_visibility="collapsed", key=f"stee_{si}")
+        seg['ve']    = cols[5].number_input("ve",    value=seg['ve'],    min_value=0, step=1,
+                                             label_visibility="collapsed", key=f"sve_{si}")
+        seg['red_n'] = cols[6].number_input("red_n", value=seg['red_n'], min_value=0, step=1,
+                                             label_visibility="collapsed", key=f"sredn_{si}")
+        seg['d_up']  = cols[7].number_input("d_up",  value=seg['d_up'],  min_value=seg['d'],
+                                             step=0.001, format="%.4f",
+                                             label_visibility="collapsed", key=f"sdup_{si}")
+
+    hy_segments = st.session_state['hy_segments']
+    total_L = sum(s['L'] for s in hy_segments)
+    st.caption(S["seg_sum"].format(L=total_L, n=len(hy_segments)))
+
+    # Global values used in calculation
     hy_dz = dz_glob
-
-    st.subheader(S["hy_fittings"])
-    hc2_a, hc2_b = st.columns(2)
-    with hc2_a:
-        hy_c90 = st.number_input(S["hy_c90"], min_value=0, value=4, step=1)
-        hy_c45 = st.number_input(S["hy_c45"], min_value=0, value=2, step=1)
-    with hc2_b:
-        hy_tee = st.number_input(S["hy_tee"], min_value=0, value=2, step=1)
-        hy_ve  = st.number_input(S["hy_ve"],  min_value=0, value=3, step=1)
-        hy_vb_bloq = st.number_input(S["hy_vb"], min_value=0, value=0, step=1,
-                                     help=S["hy_vb_help"])
 
     st.subheader(S["ctrl_v"])
     with st.expander("ℹ️ Kv — IEC 60534", expanded=False):
@@ -1162,9 +1107,8 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             cv_ov = resolve_ctrl_valves(op_pct)
             H = []
             for Q in Q_arr:
-                h, *_ = head_loss(Q, hy_d, hy_rg, hy_L, hy_dz,
-                                  hy_c90, hy_c45, hy_tee, hy_ve, hy_vb_bloq,
-                                  cv_ov, hy_rho, hy_mu_hot)
+                h, *_ = head_loss(Q, hy_segments, hy_dz,
+                                  cv_ov, hy_rho, hy_mu_hot, rug_mm)
                 H.append(h)
             return _np2.array(H)
 
@@ -1364,83 +1308,173 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'Qmx': Qmx,  'Hmx': Hmx,
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
             'y_max': y_max,
+            'segments': [{k: v for k, v in s.items()} for s in hy_segments],
+            'rug_mm': rug_mm, 'dz_glob': dz_glob,
         }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 3 – BOM
-# ─────────────────────────────────────────────────────────────────────────────
-with tab_bm:
-    st.header(S["bm_hdr"])
-    st.info(S["bm_info"])
-    bc1, bc2 = st.columns(2)
-    with bc1:
-        bv = st.number_input(S["bm_tv"],  min_value=0.1, value=10.0,  key="bm_tv")
-        bDN= st.number_input(S["bm_DN"],  value=250, step=25,          key="bm_DN")
-        bL = st.number_input(S["bm_L"],   min_value=1.0, value=40.0,  key="bm_L")
-        bc90=st.number_input(S["bm_c90"], min_value=0, value=4,  step=1, key="bm_c90")
-        bc45=st.number_input(S["bm_c45"], min_value=0, value=2,  step=1, key="bm_c45")
-        bt  =st.number_input(S["bm_tee"], min_value=0, value=2,  step=1, key="bm_tee")
-    with bc2:
-        bve =st.number_input(S["bm_ve"],  min_value=0, value=4,  step=1, key="bm_ve")
-        bvb =st.number_input(S["bm_vb"],  min_value=0, value=1,  step=1, key="bm_vb")
-        bvc =st.number_input(S["bm_vc"],  min_value=0, value=1,  step=1, key="bm_vc")
-        bpt =st.number_input(S["bm_pt"],  min_value=0, value=4,  step=1, key="bm_pt")
-        btt =st.number_input(S["bm_tt"],  min_value=0, value=3,  step=1, key="bm_tt")
-        bftm=st.number_input(S["bm_ftm"], min_value=1, value=1,  step=1, key="bm_ftm")
-        bftc=st.number_input(S["bm_ftc"], min_value=1, value=1,  step=1, key="bm_ftc")
+with tab_th:
+    st.header(S["th_header"])
 
-    st.subheader(S["bm_pump"])
-    bp1, bp2 = st.columns(2)
-    bH  = bp1.number_input(S["bm_H"],  min_value=0.0, value=30.0,  key="bm_H")
-    bQ  = bp1.number_input(S["bm_Q"],  min_value=0.0, value=800.0, key="bm_Q")
-    bP  = bp2.number_input(S["bm_P"],  min_value=0.0, value=90.0,  key="bm_P")
-    bef = bp2.number_input(S["bm_ef"], min_value=1.0, max_value=100.0, value=70.0, key="bm_ef")
+    # Row 1: System Data (full width, 4 columns)
+    st.subheader(S["sys_data"])
+    s1, s2, s3, s4 = st.columns(4)
+    vol_m3     = s1.number_input(S["vol"],    min_value=0.1, value=10.0)
+    T_amb      = s2.number_input(S["tamb"],   value=25.0)
+    mu_nom_cP  = s3.number_input(S["mu_nom"], value=25.0, min_value=0.01)
+    t_sim_h    = s4.number_input(S["tsim"],   min_value=0.1, value=10.0)
 
-    if st.button(S["bm_btn"], type="primary"):
-        CT=S["ct"]; CD=S["cd"]; CQ=S["cq"]; CU=S["cu"]; CS=S["cs"]
-        if lang == "pt":
-            rows_bom = [
-                {CT:"TQ-001",    CD:"Tanque de processo",               CQ:1,    CU:"un", CS:f"{bv:.1f} m³"},
-                {CT:"PU-001",    CD:"Bomba centrífuga",                 CQ:1,    CU:"un", CS:f"Q={bQ:.0f}m³/h|H={bH:.1f}m|P≈{bP:.0f}kW|η≈{bef:.0f}%"},
-                {CT:"IHF-001",   CD:"Inversor de frequência",           CQ:1,    CU:"un", CS:f"P≈{bP:.0f} kW"},
-                {CT:"TUB-001",   CD:f"Tubulação AC DN{bDN}",           CQ:bL,   CU:"m",  CS:f"DN{bDN}mm, tubo nu"},
-                {CT:"CUR90-XXX", CD:f"Curva 90° DN{bDN}",              CQ:bc90, CU:"un", CS:f"DN{bDN}mm, solda"},
-                {CT:"CUR45-XXX", CD:f"Curva 45° DN{bDN}",              CQ:bc45, CU:"un", CS:f"DN{bDN}mm, solda"},
-                {CT:"TE-XXX",    CD:f"Tê DN{bDN}",                     CQ:bt,   CU:"un", CS:f"DN{bDN}mm"},
-                {CT:"VBL-XXX",   CD:"Válvula esfera (bloqueio)",        CQ:bve,  CU:"un", CS:f"DN{bDN}mm"},
-                {CT:"VBB-XXX",   CD:"Válvula borboleta",                CQ:bvb,  CU:"un", CS:f"DN{bDN}mm"},
-                {CT:"VFC-XXX",   CD:"Válvula de controle c/ atuador",  CQ:bvc,  CU:"un", CS:f"DN{bDN}mm"},
-                {CT:"PT-XXX",    CD:"Transmissor de pressão",          CQ:bpt,  CU:"un", CS:"4-20mA, HART"},
-                {CT:"TT-XXX",    CD:"Transmissor de temperatura",      CQ:btt,  CU:"un", CS:"4-20mA, HART"},
-                {CT:"FT-MASTER", CD:"Master Meter (referência)",       CQ:bftm, CU:"un", CS:"Coriolis/ultrassônico, classe 0,02%"},
-                {CT:"FT-CALIB",  CD:"Medidor em calibração (UUT)",     CQ:bftc, CU:"un", CS:"A definir"},
-            ]
+    st.divider()
+
+    # Row 2: Heating | Calibration (side by side, below System Data)
+    ph1, ph2 = st.columns(2)
+    with ph1:
+        st.subheader(S["heat_ph"])
+        P_heat  = st.number_input(S["p_kw"],  min_value=0.1, value=69.0, key="P_h", help=S["p_kw_help"])
+        Q_heat  = st.number_input(S["q_ph"],  min_value=0.1, value=550.0, key="Q_h")
+        ef_heat = st.number_input(S["eff"],   min_value=1.0, max_value=100.0, value=58.0, key="ef_h")
+        hf_heat = st.number_input(S["hf"],    min_value=0.0, value=1.0, step=0.05, key="hf_h", help=S["hf_help"])
+    with ph2:
+        st.subheader(S["calib_ph"])
+        P_cal   = st.number_input(S["p_kw"],  min_value=0.1, value=69.0, key="P_c", help=S["p_kw_help"])
+        Q_cal   = st.number_input(S["q_ph"],  min_value=0.1, value=550.0, key="Q_c")
+        ef_cal  = st.number_input(S["eff"],   min_value=1.0, max_value=100.0, value=58.0, key="ef_c")
+        hf_cal  = st.number_input(S["hf"],    min_value=0.0, value=1.0, step=0.05, key="hf_c", help=S["hf_help"])
+
+    st.divider()
+
+    if st.button(S["run"], type="primary"):
+
+        mu_110_pa = mu_nom_cP * 1.1 / 1000.0
+        mu_90_pa  = mu_nom_cP * 0.9 / 1000.0
+        T110 = solve_visc_temp(viscosity_model, mu_110_pa)
+        T90  = solve_visc_temp(viscosity_model, mu_90_pa)
+        Tnom = solve_visc_temp(viscosity_model, mu_nom_cP / 1000.0)
+
+        if T110 is None or T90 is None:
+            st.error(S["err_mu"]); st.stop()
+
+        # Heating phase
+        # W_pump constant; F_flow affects thermal resistance path
+        W_heat  = P_heat  * (ef_heat/100) * hf_heat * 1000.0   # W
+        F_heat  = Q_heat  / 3600.0                              # m³/s
+        m_fluid = vol_m3  * rho
+
+        dt    = 1.0
+        t_max = t_sim_h * 3600.0
+        time  = np.arange(0, t_max, dt)
+        Tf_h  = np.zeros(len(time)); Tf_h[0] = T_amb
+
+        for i in range(1, len(time)):
+            dTdt = euler_step(Tf_h[i-1], T_amb, F_heat, W_heat,
+                              rho, cp_fluid, k_fluid,
+                              d_inner, D_outer, L_pipe,
+                              eps_emit, h_ext, m_fluid)
+            Tf_h[i] = Tf_h[i-1] + dTdt * dt
+
+        idx110 = np.where(Tf_h >= T110)[0]
+        if len(idx110) == 0:
+            st.warning(S["warn_110"]); st.stop()
+
+        t110_s  = time[idx110[0]]
+        T110_v  = Tf_h[idx110[0]]
+        t110_h  = t110_s / 3600.0
+        mask_h  = time <= t110_s
+        t_hp    = time[mask_h]; T_hp = Tf_h[mask_h]
+
+        # Calibration phase
+        W_cal  = P_cal * (ef_cal/100) * hf_cal * 1000.0
+        F_cal  = Q_cal / 3600.0
+
+        tc     = np.arange(t110_s, t_max, dt)
+        Tf_c   = np.zeros(len(tc)); Tf_c[0] = T110_v
+
+        for i in range(1, len(tc)):
+            dTdt = euler_step(Tf_c[i-1], T_amb, F_cal, W_cal,
+                              rho, cp_fluid, k_fluid,
+                              d_inner, D_outer, L_pipe,
+                              eps_emit, h_ext, m_fluid)
+            Tf_c[i] = Tf_c[i-1] + dTdt * dt
+
+        T_eq  = Tf_c[-1]
+        idx90 = np.where(Tf_c >= T90)[0]
+        if len(idx90) > 0:
+            t90_s = tc[idx90[0]]; T90_v = Tf_c[idx90[0]]
+            t90_h = t90_s / 3600.0; cwin_h = t90_h - t110_h
         else:
-            rows_bom = [
-                {CT:"TQ-001",    CD:"Process tank",                CQ:1,    CU:"ea", CS:f"{bv:.1f} m³"},
-                {CT:"PU-001",    CD:"Centrifugal pump",            CQ:1,    CU:"ea", CS:f"Q={bQ:.0f}m³/h|H={bH:.1f}m|P≈{bP:.0f}kW|η≈{bef:.0f}%"},
-                {CT:"VFD-001",   CD:"Variable frequency drive",    CQ:1,    CU:"ea", CS:f"P≈{bP:.0f} kW"},
-                {CT:"PIP-001",   CD:f"CS pipe DN{bDN}",            CQ:bL,   CU:"m",  CS:f"DN{bDN}mm, bare"},
-                {CT:"ELB90-XXX", CD:f"90° elbow DN{bDN}",          CQ:bc90, CU:"ea", CS:f"DN{bDN}mm, BW"},
-                {CT:"ELB45-XXX", CD:f"45° elbow DN{bDN}",          CQ:bc45, CU:"ea", CS:f"DN{bDN}mm, BW"},
-                {CT:"TEE-XXX",   CD:f"Tee DN{bDN}",                CQ:bt,   CU:"ea", CS:f"DN{bDN}mm"},
-                {CT:"BV-XXX",    CD:"Ball valve (isolation)",       CQ:bve,  CU:"ea", CS:f"DN{bDN}mm"},
-                {CT:"BFV-XXX",   CD:"Butterfly valve",              CQ:bvb,  CU:"ea", CS:f"DN{bDN}mm"},
-                {CT:"CV-XXX",    CD:"Control valve w/ actuator",   CQ:bvc,  CU:"ea", CS:f"DN{bDN}mm"},
-                {CT:"PT-XXX",    CD:"Pressure transmitter",         CQ:bpt,  CU:"ea", CS:"4-20mA, HART"},
-                {CT:"TT-XXX",    CD:"Temperature transmitter",      CQ:btt,  CU:"ea", CS:"4-20mA, HART"},
-                {CT:"FT-MASTER", CD:"Master Meter (reference)",     CQ:bftm, CU:"ea", CS:"Coriolis/ultrasonic, class 0.02%"},
-                {CT:"FT-CALIB",  CD:"Meter under calibration (UUT)",CQ:bftc, CU:"ea", CS:"TBD"},
-            ]
-        df_bom = pd.DataFrame(rows_bom)
-        st.dataframe(df_bom, use_container_width=True, hide_index=True)
-        buf = io.StringIO()
-        df_bom.to_csv(buf, index=False, sep=";", encoding="utf-8-sig")
-        st.download_button(label=S["bm_exp"],
-                           data=buf.getvalue().encode("utf-8-sig"),
-                           file_name="BOM_Calibration_Lab.csv", mime="text/csv")
-        st.success(S["bm_ok"])
+            t90_h = T90_v = cwin_h = None
+
+        # ── Results row 1: viscosities & temperatures (5 metrics) ──
+        st.subheader(S["res_hdr"])
+        r1, r2, r3, r4, r5 = st.columns(5)
+        r1.metric(S["r_mu"],  f"{mu_nom_cP:.1f} cP")
+        r2.metric(S["r_Tt"],  f"{Tnom:.1f} °C" if Tnom else "N/A")
+        r3.metric(S["r_T90"], f"{T90:.1f} °C"  if T90  else "N/A")
+        r4.metric(S["r_T110"],f"{T110:.1f} °C")
+        r5.metric(S["r_Teq"], f"{T_eq:.1f} °C")
+
+        # ── Results row 2: timing + energy ──
+        E_heat  = P_heat * t110_h                                        # kWh heating
+        E_cal   = P_cal  * cwin_h if cwin_h is not None else None        # kWh calibration window
+        E_total = E_heat + E_cal  if E_cal  is not None else None
+
+        t1, t2, t3, t4, t5 = st.columns(5)
+        t1.metric(S["r_th"], hm(t110_h))
+        t2.metric(S["r_cw"], hm(cwin_h) if cwin_h is not None else S["na"])
+        t3.metric(S["r_eh"], f"{E_heat:.1f} kWh")
+        t4.metric(S["r_ec"], f"{E_cal:.1f} kWh"   if E_cal   is not None else S["na"])
+        t5.metric(S["r_et"], f"{E_total:.1f} kWh"  if E_total is not None else S["na"])
+
+        # ── Plot ──
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=t_hp/3600, y=T_hp, mode='lines',
+            name=S["tr_heat"], line=dict(color='orangered', width=2.5)))
+        fig.add_trace(go.Scatter(x=tc/3600, y=Tf_c, mode='lines',
+            name=S["tr_calib"], line=dict(color='royalblue', width=2.5)))
+
+        xf = [0, t_sim_h]
+        fig.add_trace(go.Scatter(x=xf, y=[T_eq,T_eq], mode='lines',
+            name=f'T_eq={T_eq:.1f}°C', line=dict(color='orangered', dash='dash')))
+        fig.add_trace(go.Scatter(x=xf, y=[T110,T110], mode='lines',
+            name=f'T 110%µ={T110:.1f}°C', line=dict(color='purple', dash='dot')))
+        fig.add_trace(go.Scatter(x=[t110_h,t110_h], y=[T_amb-5, T_eq+10], mode='lines',
+            name=f't₁₁₀={hm(t110_h)}', line=dict(color='purple', dash='dot')))
+        fig.add_trace(go.Scatter(x=[t110_h], y=[T110_v], mode='markers',
+            marker=dict(color='purple', size=9), showlegend=False))
+
+        if T90 is not None:
+            fig.add_trace(go.Scatter(x=xf, y=[T90,T90], mode='lines',
+                name=f'T 90%µ={T90:.1f}°C', line=dict(color='green', dash='dot')))
+        if t90_h is not None:
+            fig.add_trace(go.Scatter(x=[t90_h,t90_h], y=[T_amb-5, T_eq+10], mode='lines',
+                name=f't₉₀={hm(t90_h)}', line=dict(color='green', dash='dot')))
+            fig.add_trace(go.Scatter(x=[t90_h], y=[T90_v], mode='markers',
+                marker=dict(color='green', size=9), showlegend=False))
+            fig.add_vrect(x0=t110_h, x1=t90_h, fillcolor="green", opacity=0.07,
+                          layer="below", line_width=0,
+                          annotation_text=S["cw_lbl"], annotation_position="top left")
+
+        fig.update_layout(
+            title=S["pl_title"], xaxis_title=S["pl_x"], yaxis_title=S["pl_y"],
+            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
+            hovermode="x unified", template="plotly_white", height=520)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Store results for PDF export
+        st.session_state['th_data'] = {
+            'vol_m3': vol_m3, 'T_amb': T_amb, 'mu_nom_cP': mu_nom_cP,
+            't_sim_h': t_sim_h, 'P_heat': P_heat, 'Q_heat': Q_heat,
+            'ef_heat': ef_heat, 'P_cal': P_cal, 'Q_cal': Q_cal, 'ef_cal': ef_cal,
+            'Tnom': Tnom, 'T90': T90, 'T110': T110, 'T_eq': T_eq,
+            't110_h': t110_h, 'cwin_h': cwin_h,
+            'E_heat': E_heat, 'E_cal': E_cal, 'E_total': E_total,
+            # raw arrays for PDF chart (no kaleido needed)
+            't_hp': t_hp / 3600.0, 'T_hp': T_hp,
+            'tc_h': tc / 3600.0,   'Tf_c': Tf_c,
+            't90_h': t90_h, 'T90_v': T90_v if t90_h is not None else None,
+            'T110_v': T110_v,
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
