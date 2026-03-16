@@ -23,7 +23,7 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SAVE / LOAD CONFIGURATIONS LOGIC (ATUALIZADO)
+# SAVE / LOAD CONFIGURATIONS LOGIC
 # ─────────────────────────────────────────────────────────────────────────────
 CONFIG_FILE = "lab_configs.json"
 
@@ -42,10 +42,8 @@ def save_config_callback():
     configs = get_saved_configs()
     data_to_save = {}
     for k, v in st.session_state.items():
-        # Ignora chaves internas de dados
         if k in ["th_data", "hy_data", "hy_sim_active", "new_cfg_name", "sel_cfg_name"]:
             continue
-        # Ignora ESTRITAMENTE qualquer chave de botão para evitar StreamlitValueAssignmentNotAllowedError
         if "btn" in k.lower():
             continue
             
@@ -62,7 +60,6 @@ def load_config_callback():
     configs = get_saved_configs()
     if name in configs:
         for k, v in configs[name].items():
-            # Ignora chaves de seleção e, CRITICAMENTE, botões salvos em versões anteriores do JSON
             if k in ["new_cfg_name", "sel_cfg_name"]:
                 continue
             if "btn" in k.lower():
@@ -577,6 +574,29 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
                 if q_op is not None:
                     col = op_colors.get(lbl, 'black')
                     ax.plot(q_op, h_op, marker=sym, ms=8, color=col, zorder=5)
+                    
+        # PLOT DA LINHA DE DELTA P E ANOTAÇÃO (NOVO)
+        from scipy.interpolate import CubicSpline
+        cs_sys_base = CubicSpline(Qr, d['H_sys_base'], extrapolate=True)
+        
+        items_to_annotate = [(f'{uop}%', d['ops_fnom_pts'][1])]
+        if d.get('show_ref', True):
+            items_to_annotate = [('20%', d['ops_fnom_pts'][0])] + items_to_annotate + [('100%', d['ops_fnom_pts'][2])]
+            
+        for valve_lbl, (q_op, h_op) in items_to_annotate:
+            if q_op is not None:
+                h_base_op = float(cs_sys_base(q_op))
+                dP_bar = (h_op - h_base_op) * d['hy_rho'] * 9.81 / 100000.0
+                col = op_colors.get(valve_lbl, 'black')
+                
+                # Linha vertical do Delta P
+                ax.plot([q_op, q_op], [h_base_op, h_op], color=col, linestyle=':', linewidth=1.5, zorder=4)
+                # Texto do Delta P
+                ax.annotate(f"ΔP={dP_bar:.1f} bar", xy=(q_op, (h_op + h_base_op)/2),
+                            xytext=(5, 0), textcoords="offset points",
+                            color=col, fontsize=8, va='center', ha='left',
+                            backgroundcolor='white')
+
         if d['y_max']:
             ax.set_ylim(0, d['y_max'])
         ax.set_xlim(0, d['hy_qmax'] * 1.05)
