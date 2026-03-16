@@ -139,7 +139,7 @@ TR = {
         "pump_nom": "Bomba — {f} Hz (nominal)",
         "pump_fmin": "Bomba — {f} Hz (mín. inversor)",
         "pump_fmax": "Bomba — {f} Hz (máx. inversor)",
-        "calc_btn": "📊 Ativar Simulação Interativa",
+        "sim_hdr": "🎛️ Simulação Interativa (Atualização em Tempo Real)",
         "kv_calc": "**Calculadora rápida de Kv:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "ΔP máx (bar):",
@@ -304,7 +304,7 @@ TR = {
         "pump_nom": "Pump — {f} Hz (nominal)",
         "pump_fmin": "Pump — {f} Hz (VFD min)",
         "pump_fmax": "Pump — {f} Hz (VFD max)",
-        "calc_btn": "📊 Activate Interactive Simulation",
+        "sim_hdr": "🎛️ Interactive Simulation (Real-time update)",
         "kv_calc": "**Quick Kv calculator:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "Max ΔP (bar):",
@@ -371,7 +371,6 @@ def solve_visc_temp(visc_fn, mu_pa):
         return None
 
 def solve_Ts(Tf, Tamb, R_int, R_ext, A_rad, eps, nit=15):
-    """Newton-Raphson for outer surface temperature."""
     Tamb_K = Tamb + 273.15
     Ts = Tf
     for _ in range(nit):
@@ -555,7 +554,6 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         ax.plot(Qr, d['H_sys20'],  color='steelblue', lw=2, label='Sistema 20%' if PT else 'System 20%')
         ax.plot(Qr, d['H_sys100'], color='royalblue', lw=2, label='Sistema 100%' if PT else 'System 100%')
         
-        # Base pipe
         ax.plot(Qr, d.get('H_sys_base', []), color='gray', lw=1.5, ls='--', label='Base Pipe')
         
         uop = d['user_op']
@@ -864,7 +862,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     n_ctrl = st.number_input(S["n_ctrl_lbl"], min_value=0, value=1, step=1, help=S["n_ctrl_help"])
     st.info(S["ctrl_series_note"])
 
-    ctrl_valves    = []
     fcv_curve_data = []
 
     for i in range(int(n_ctrl)):
@@ -872,10 +869,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         cv_mode = st.radio(S["kv_mode_lbl"], [S["kv_mode_single"], S["kv_mode_curve"]], key=f"cvmode_{i}", horizontal=True)
 
         if cv_mode == S["kv_mode_single"]:
-            cv1, cv2 = st.columns(2)
-            kv_i = cv1.number_input(S["kv_lbl"], min_value=0.0, value=870.0, key=f"kv_{i}", help=S["kv_help"])
-            op_i = cv2.slider(S["op_lbl"], 0, 100, 100, key=f"op_{i}", help=S["op_help"])
-            ctrl_valves.append((kv_i, op_i))
+            kv_i = st.number_input(S["kv_lbl"], min_value=0.0, value=870.0, key=f"kv_{i}", help=S["kv_help"])
             fcv_curve_data.append(("linear", kv_i))
 
         else:
@@ -890,8 +884,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                     kv_j = st.number_input(S["kv_kv_j"], value=float(dkv), min_value=0.0, key=f"cvkv_{i}_{j}")
                     cv_pts_op.append(op_j); cv_pts_kv.append(kv_j)
 
-            op_user_i = st.slider(S["op_lbl"], 0, 100, 100, key=f"op_{i}", help=S["op_help"])
-
             import numpy as _np
             from scipy.interpolate import interp1d as _interp1d
             _ops = _np.array(cv_pts_op, dtype=float)
@@ -900,9 +892,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             _ops, _kvs = _ops[sort_i], _kvs[sort_i]
             _log_kv = _np.log(_kvs)
             _interp = _interp1d(_ops, _log_kv, kind='linear', fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
-            kv_at_user = float(_np.exp(_interp(op_user_i)))
-            ctrl_valves.append((kv_at_user, 100))
-            fcv_curve_data.append(("curve", (_ops, _kvs, _interp, op_user_i)))
+            fcv_curve_data.append(("curve", (_ops, _kvs, _interp)))
 
     st.subheader(S["fl_hy"])
     fc1, fc2, fc3 = st.columns(3)
@@ -930,219 +920,211 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             h_i = st.number_input(S["pc_H_lbl"].format(i+1), value=float(dh), min_value=0.0, key=f"pcH{i}")
             pump_pts.append((q_i, h_i))
 
-    # MODIFICADO AQUI: Lógica de simulação ativa (Reativa ao Slider)
-    if st.button(S["calc_btn"], type="primary"):
-        st.session_state['hy_sim_active'] = True
+    # =========================================================================
+    # LÓGICA DE SIMULAÇÃO REATIVA (SEM BOTÃO)
+    # =========================================================================
+    st.markdown("---")
+    st.subheader(S["sim_hdr"])
+    
+    # Slider interativo posicionado imediatamente acima do gráfico
+    if n_ctrl > 0:
+        user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
+    else:
+        user_op = 100
 
-    if st.session_state.get('hy_sim_active', False):
-        from scipy.interpolate import CubicSpline
-        from scipy.optimize import brentq
+    from scipy.interpolate import CubicSpline
+    from scipy.optimize import brentq
+    import numpy as _np2
 
-        Qr = np.linspace(0, hy_qmax, 400)
+    Qr = np.linspace(0, hy_qmax, 400)
 
-        # ── System curves at 3 valve openings + Base Pipe ─────────────────────
-        import numpy as _np2
-        
-        # Base Pipe (Sem Válvula)
-        def sys_curve_base(Q_arr):
-            H = []
-            for Q in Q_arr:
-                # Passa lista vazia [] para as válvulas de controle
-                h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm)
-                H.append(h)
-            return _np2.array(H)
+    # ── System curves at 3 valve openings + Base Pipe ─────────────────────
+    def sys_curve_base(Q_arr):
+        H = []
+        for Q in Q_arr:
+            h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm)
+            H.append(h)
+        return _np2.array(H)
 
-        def resolve_ctrl_valves(op_pct):
-            cv_resolved = []
-            for idx, (mode, data) in enumerate(fcv_curve_data):
-                if mode == "linear":
-                    kv_nom = data
-                    cv_resolved.append((kv_nom, op_pct))
-                else:
-                    _ops_c, _kvs_c, _interp_c, _user_op_c = data
-                    kv_resolved = float(_np2.exp(_interp_c(op_pct)))
-                    cv_resolved.append((kv_resolved, 100))
-            return cv_resolved
-
-        def sys_curve(Q_arr, op_pct):
-            cv_ov = resolve_ctrl_valves(op_pct)
-            H = []
-            for Q in Q_arr:
-                h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm)
-                H.append(h)
-            return _np2.array(H)
-
-        H_sys_base = sys_curve_base(Qr)
-        H_sys20    = sys_curve(Qr, 20)
-        H_sys100   = sys_curve(Qr, 100)
-
-        if fcv_curve_data:
-            mode0, data0 = fcv_curve_data[0]
-            if mode0 == "linear":
-                user_op = ctrl_valves[0][1] if ctrl_valves else 100
+    def resolve_ctrl_valves(op_pct):
+        cv_resolved = []
+        for idx, (mode, data) in enumerate(fcv_curve_data):
+            if mode == "linear":
+                cv_resolved.append((data, op_pct))
             else:
-                user_op = int(data0[3])
-        else:
-            user_op = 100
-        H_sys_usr = sys_curve(Qr, user_op)
+                _ops_c, _kvs_c, _interp_c = data
+                kv_resolved = float(_np2.exp(_interp_c(op_pct)))
+                cv_resolved.append((kv_resolved, 100)) # Kv já foi escalonado pela interpolação
+        return cv_resolved
 
-        # ── Pump curves via affinity laws ──────────────────────────────────────
-        Qp = np.array([p[0] for p in pump_pts])
-        Hp = np.array([p[1] for p in pump_pts])
-        sort_idx = np.argsort(Qp)
-        Qp, Hp = Qp[sort_idx], Hp[sort_idx]
+    def sys_curve(Q_arr, op_pct):
+        cv_ov = resolve_ctrl_valves(op_pct)
+        H = []
+        for Q in Q_arr:
+            h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm)
+            H.append(h)
+        return _np2.array(H)
 
-        def pump_curve_at_freq(f_target):
-            ratio = f_target / pc_freq0
-            Q_sc = Qp * ratio
-            H_sc = Hp * ratio**2
-            cs = CubicSpline(Q_sc, H_sc, extrapolate=False)
-            Q_full = np.linspace(0, Q_sc[-1], 400)
-            H_full = cs(Q_full)
-            H_full = np.where(H_full < 0, np.nan, H_full)
-            return Q_full, H_full, cs, Q_sc[-1]
+    H_sys_base = sys_curve_base(Qr)
+    H_sys20    = sys_curve(Qr, 20)
+    H_sys100   = sys_curve(Qr, 100)
+    H_sys_usr  = sys_curve(Qr, user_op)
 
-        Qnom, Hnom, cs_nom, Qmax_nom = pump_curve_at_freq(pc_freq0)
-        Qmin, Hmin, cs_fmin, Qmax_min = pump_curve_at_freq(pc_fmin)
-        Qmx,  Hmx,  cs_fmax, Qmax_mx  = pump_curve_at_freq(pc_fmax)
+    # ── Pump curves via affinity laws ──────────────────────────────────────
+    Qp = np.array([p[0] for p in pump_pts])
+    Hp = np.array([p[1] for p in pump_pts])
+    sort_idx = np.argsort(Qp)
+    Qp, Hp = Qp[sort_idx], Hp[sort_idx]
 
-        def find_op(cs_pump_f, Qmax_f, sys_H_arr, sys_Q_arr=Qr):
-            cs_sys = CubicSpline(sys_Q_arr, sys_H_arr, extrapolate=True)
-            diff = lambda Q: float(cs_pump_f(Q)) - float(cs_sys(Q))
-            Q_search = np.linspace(1, min(Qmax_f, hy_qmax), 300)
-            d_vals = [diff(q) for q in Q_search]
-            ops = []
-            for j in range(len(d_vals)-1):
-                if d_vals[j] * d_vals[j+1] < 0:
-                    try:
-                        q_op = brentq(diff, Q_search[j], Q_search[j+1])
-                        h_op = float(cs_sys(q_op))
-                        ops.append((q_op, h_op))
-                    except Exception:
-                        pass
-            return ops[-1] if ops else (None, None)
+    def pump_curve_at_freq(f_target):
+        ratio = f_target / pc_freq0
+        Q_sc = Qp * ratio
+        H_sc = Hp * ratio**2
+        cs = CubicSpline(Q_sc, H_sc, extrapolate=False)
+        Q_full = np.linspace(0, Q_sc[-1], 400)
+        H_full = cs(Q_full)
+        H_full = np.where(H_full < 0, np.nan, H_full)
+        return Q_full, H_full, cs, Q_sc[-1]
 
-        op20   = find_op(cs_nom, Qmax_nom, H_sys20)
-        op100  = find_op(cs_nom, Qmax_nom, H_sys100)
-        op_usr = find_op(cs_nom, Qmax_nom, H_sys_usr)
+    Qnom, Hnom, cs_nom, Qmax_nom = pump_curve_at_freq(pc_freq0)
+    Qmin, Hmin, cs_fmin, Qmax_min = pump_curve_at_freq(pc_fmin)
+    Qmx,  Hmx,  cs_fmax, Qmax_mx  = pump_curve_at_freq(pc_fmax)
 
-        # ── Plot ──────────────────────────────────────────────────────────────
-        fh = go.Figure()
+    def find_op(cs_pump_f, Qmax_f, sys_H_arr, sys_Q_arr=Qr):
+        cs_sys = CubicSpline(sys_Q_arr, sys_H_arr, extrapolate=True)
+        diff = lambda Q: float(cs_pump_f(Q)) - float(cs_sys(Q))
+        Q_search = np.linspace(1, min(Qmax_f, hy_qmax), 300)
+        d_vals = [diff(q) for q in Q_search]
+        ops = []
+        for j in range(len(d_vals)-1):
+            if d_vals[j] * d_vals[j+1] < 0:
+                try:
+                    q_op = brentq(diff, Q_search[j], Q_search[j+1])
+                    h_op = float(cs_sys(q_op))
+                    ops.append((q_op, h_op))
+                except Exception:
+                    pass
+        return ops[-1] if ops else (None, None)
 
-        # MODIFICADO AQUI: Plotando o Base Pipe
-        fh.add_trace(go.Scatter(x=Qr, y=H_sys_base, mode='lines',
-            name=S["sys_base"], line=dict(color='gray', width=2, dash='dash')))
+    op20   = find_op(cs_nom, Qmax_nom, H_sys20)
+    op100  = find_op(cs_nom, Qmax_nom, H_sys100)
+    op_usr = find_op(cs_nom, Qmax_nom, H_sys_usr)
 
-        fh.add_trace(go.Scatter(x=Qr, y=H_sys20, mode='lines',
-            name=S["sys20"], line=dict(color='steelblue', width=2.5)))
-        fh.add_trace(go.Scatter(x=Qr, y=H_sys100, mode='lines',
-            name=S["sys100"], line=dict(color='royalblue', width=2.5)))
-        if user_op not in (20, 100):
-            fh.add_trace(go.Scatter(x=Qr, y=H_sys_usr, mode='lines',
-                name=S["sys_user"] + f" ({user_op}%)",
-                line=dict(color='cornflowerblue', width=2, dash='dot')))
+    # ── Plot ──────────────────────────────────────────────────────────────
+    fh = go.Figure()
 
-        fh.add_trace(go.Scatter(x=Qmin, y=Hmin, mode='lines',
-            name=S["pump_fmin"].format(f=pc_fmin), line=dict(color='#FFB300', width=2.5)))
-        fh.add_trace(go.Scatter(x=Qmx, y=Hmx, mode='lines',
-            name=S["pump_fmax"].format(f=pc_fmax), line=dict(color='#CC0000', width=2.5)))
-        if pc_freq0 not in (pc_fmin, pc_fmax):
-            fh.add_trace(go.Scatter(x=Qnom, y=Hnom, mode='lines',
-                name=S["pump_nom"].format(f=pc_freq0), line=dict(color='orangered', width=2, dash='dot')))
+    fh.add_trace(go.Scatter(x=Qr, y=H_sys_base, mode='lines',
+        name=S["sys_base"], line=dict(color='gray', width=2, dash='dash')))
 
-        def ops_for_freq(cs_f, Qmax_f):
-            return (find_op(cs_f, Qmax_f, H_sys20), find_op(cs_f, Qmax_f, H_sys_usr), find_op(cs_f, Qmax_f, H_sys100))
+    fh.add_trace(go.Scatter(x=Qr, y=H_sys20, mode='lines',
+        name=S["sys20"], line=dict(color='steelblue', width=2.5)))
+    fh.add_trace(go.Scatter(x=Qr, y=H_sys100, mode='lines',
+        name=S["sys100"], line=dict(color='royalblue', width=2.5)))
+    if user_op not in (20, 100):
+        fh.add_trace(go.Scatter(x=Qr, y=H_sys_usr, mode='lines',
+            name=S["sys_user"] + f" ({user_op}%)",
+            line=dict(color='cornflowerblue', width=2, dash='dot')))
 
-        ops_fmin = ops_for_freq(cs_fmin, Qmax_min)
-        ops_fnom = (op20, op_usr, op100)
-        ops_fmax = ops_for_freq(cs_fmax, Qmax_mx)
+    fh.add_trace(go.Scatter(x=Qmin, y=Hmin, mode='lines',
+        name=S["pump_fmin"].format(f=pc_fmin), line=dict(color='#FFB300', width=2.5)))
+    fh.add_trace(go.Scatter(x=Qmx, y=Hmx, mode='lines',
+        name=S["pump_fmax"].format(f=pc_fmax), line=dict(color='#CC0000', width=2.5)))
+    if pc_freq0 not in (pc_fmin, pc_fmax):
+        fh.add_trace(go.Scatter(x=Qnom, y=Hnom, mode='lines',
+            name=S["pump_nom"].format(f=pc_freq0), line=dict(color='orangered', width=2, dash='dot')))
 
-        op_valve_colors = {'20%': '#e67e00', f'{user_op}%': '#8B008B', '100%': '#006400'}
-        op_speed_symbols = {'fmin': ('triangle-down', pc_fmin), 'fnom': ('circle', pc_freq0), 'fmax': ('triangle-up', pc_fmax)}
+    def ops_for_freq(cs_f, Qmax_f):
+        return (find_op(cs_f, Qmax_f, H_sys20), find_op(cs_f, Qmax_f, H_sys_usr), find_op(cs_f, Qmax_f, H_sys100))
 
-        for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
-            sym, freq_val = op_speed_symbols[speed_key]
-            for valve_lbl, (q_op, h_op) in [('20%', ops_tuple[0]), (f'{user_op}%', ops_tuple[1]), ('100%', ops_tuple[2])]:
-                if q_op is not None:
-                    col = op_valve_colors[valve_lbl]
-                    fh.add_trace(go.Scatter(
-                        x=[q_op], y=[h_op], mode='markers+text',
-                        marker=dict(color=col, size=13, symbol=sym, line=dict(color='white', width=1.5)),
-                        text=[f"  <b>{valve_lbl} @ {freq_val}Hz</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"],
-                        textfont=dict(color=col, size=11), textposition='middle right', showlegend=False
-                    ))
+    ops_fmin = ops_for_freq(cs_fmin, Qmax_min)
+    ops_fnom = (op20, op_usr, op100)
+    ops_fmax = ops_for_freq(cs_fmax, Qmax_mx)
 
-        # MODIFICADO AQUI: Anotações visuais do Valve dP para a rotação nominal
-        cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
-        for valve_lbl, (q_op, h_op) in [('20%', op20), (f'{user_op}%', op_usr), ('100%', op100)]:
+    op_valve_colors = {'20%': '#e67e00', f'{user_op}%': '#8B008B', '100%': '#006400'}
+    op_speed_symbols = {'fmin': ('triangle-down', pc_fmin), 'fnom': ('circle', pc_freq0), 'fmax': ('triangle-up', pc_fmax)}
+
+    for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
+        sym, freq_val = op_speed_symbols[speed_key]
+        for valve_lbl, (q_op, h_op) in [('20%', ops_tuple[0]), (f'{user_op}%', ops_tuple[1]), ('100%', ops_tuple[2])]:
             if q_op is not None:
-                h_base_op = float(cs_sys_base(q_op))
-                dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0  # Conversão de mca para bar
+                col = op_valve_colors[valve_lbl]
+                fh.add_trace(go.Scatter(
+                    x=[q_op], y=[h_op], mode='markers+text',
+                    marker=dict(color=col, size=13, symbol=sym, line=dict(color='white', width=1.5)),
+                    text=[f"  <b>{valve_lbl} @ {freq_val}Hz</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"],
+                    textfont=dict(color=col, size=11), textposition='middle right', showlegend=False
+                ))
 
-                fh.add_shape(type="line",
-                    x0=q_op, y0=h_base_op, x1=q_op, y1=h_op,
-                    line=dict(color=op_valve_colors.get(valve_lbl, 'black'), width=2, dash="dot")
-                )
+    cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
+    for valve_lbl, (q_op, h_op) in [('20%', op20), (f'{user_op}%', op_usr), ('100%', op100)]:
+        if q_op is not None:
+            h_base_op = float(cs_sys_base(q_op))
+            dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0
 
-                fh.add_annotation(
-                    x=q_op, y=(h_op + h_base_op)/2,
-                    text=f"ΔP={dP_bar:.1f} bar",
-                    showarrow=False,
-                    xanchor="left",
-                    xshift=8,
-                    font=dict(color=op_valve_colors.get(valve_lbl, 'black'), size=11, family="Arial")
-                )
+            fh.add_shape(type="line",
+                x0=q_op, y0=h_base_op, x1=q_op, y1=h_op,
+                line=dict(color=op_valve_colors.get(valve_lbl, 'black'), width=2, dash="dot")
+            )
 
-        fh.add_vline(x=hy_qmax, line_dash="dot", line_color="gray", annotation_text=f"Q={hy_qmax:.0f} m³/h", annotation_position="top right")
+            fh.add_annotation(
+                x=q_op, y=(h_op + h_base_op)/2,
+                text=f"ΔP={dP_bar:.1f} bar",
+                showarrow=False,
+                xanchor="left",
+                xshift=8,
+                font=dict(color=op_valve_colors.get(valve_lbl, 'black'), size=11, family="Arial")
+            )
 
-        all_pump_H = list(Hnom[~np.isnan(Hnom)]) + list(Hmin[~np.isnan(Hmin)]) + list(Hmx[~np.isnan(Hmx)])
-        y_max = max(all_pump_H) * 1.15 if all_pump_H else None
+    fh.add_vline(x=hy_qmax, line_dash="dot", line_color="gray", annotation_text=f"Q={hy_qmax:.0f} m³/h", annotation_position="top right")
 
-        fh.update_layout(
-            title=S["hy_title"], xaxis_title=S["hy_px"], yaxis_title=S["hy_py"],
-            xaxis=dict(range=[0, hy_qmax * 1.05]), yaxis=dict(range=[0, y_max]),
-            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
-            template="plotly_white", hovermode="x unified", height=560)
-        
-        st.plotly_chart(fh, use_container_width=True)
+    all_pump_H = list(Hnom[~np.isnan(Hnom)]) + list(Hmin[~np.isnan(Hmin)]) + list(Hmx[~np.isnan(Hmx)])
+    y_max = max(all_pump_H) * 1.15 if all_pump_H else None
 
-        if any(q is not None for q, _ in [op20, op100, op_usr]):
-            st.subheader(S["op_pt_sys"])
-            def make_op_df(ops_tuple):
-                o20_, ousr_, o100_ = ops_tuple
-                rows_ = []
-                for lbl, (q_op, h_op) in [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]:
-                    rows_.append({
-                        S["op_lbl"]: lbl, S["op_Q"]: f"{q_op:.1f} m³/h" if q_op is not None else "—",
-                        S["op_H"]: f"{h_op:.1f} m" if h_op is not None else "—",
-                    })
-                return pd.DataFrame(rows_)
+    fh.update_layout(
+        title=S["hy_title"], xaxis_title=S["hy_px"], yaxis_title=S["hy_py"],
+        xaxis=dict(range=[0, hy_qmax * 1.05]), yaxis=dict(range=[0, y_max]),
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
+        template="plotly_white", hovermode="x unified", height=560)
+    
+    st.plotly_chart(fh, use_container_width=True)
 
-            tc1, tc2, tc3 = st.columns(3)
-            with tc1:
-                st.markdown(f"**{S['pump_fmin'].format(f=pc_fmin)}**")
-                st.dataframe(make_op_df(ops_fmin), use_container_width=True, hide_index=True)
-            with tc2:
-                st.markdown(f"**{S['pump_nom'].format(f=pc_freq0)}**")
-                st.dataframe(make_op_df(ops_fnom), use_container_width=True, hide_index=True)
-            with tc3:
-                st.markdown(f"**{S['pump_fmax'].format(f=pc_fmax)}**")
-                st.dataframe(make_op_df(ops_fmax), use_container_width=True, hide_index=True)
-
-        def ops_as_list(ops_tuple):
+    if any(q is not None for q, _ in [op20, op100, op_usr]):
+        st.subheader(S["op_pt_sys"])
+        def make_op_df(ops_tuple):
             o20_, ousr_, o100_ = ops_tuple
-            return [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]
+            rows_ = []
+            for lbl, (q_op, h_op) in [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]:
+                rows_.append({
+                    S["op_lbl"]: lbl, S["op_Q"]: f"{q_op:.1f} m³/h" if q_op is not None else "—",
+                    S["op_H"]: f"{h_op:.1f} m" if h_op is not None else "—",
+                })
+            return pd.DataFrame(rows_)
 
-        st.session_state['hy_data'] = {
-            'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
-            'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
-            'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
-            'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
-            'user_op': user_op, 'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
-            'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
-            'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
-            'rug_mm': rug_mm, 'dz_glob': dz_glob,
-        }
+        tc1, tc2, tc3 = st.columns(3)
+        with tc1:
+            st.markdown(f"**{S['pump_fmin'].format(f=pc_fmin)}**")
+            st.dataframe(make_op_df(ops_fmin), use_container_width=True, hide_index=True)
+        with tc2:
+            st.markdown(f"**{S['pump_nom'].format(f=pc_freq0)}**")
+            st.dataframe(make_op_df(ops_fnom), use_container_width=True, hide_index=True)
+        with tc3:
+            st.markdown(f"**{S['pump_fmax'].format(f=pc_fmax)}**")
+            st.dataframe(make_op_df(ops_fmax), use_container_width=True, hide_index=True)
+
+    def ops_as_list(ops_tuple):
+        o20_, ousr_, o100_ = ops_tuple
+        return [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]
+
+    st.session_state['hy_data'] = {
+        'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
+        'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
+        'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
+        'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
+        'user_op': user_op, 'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
+        'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
+        'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
+        'rug_mm': rug_mm, 'dz_glob': dz_glob,
+    }
 
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_th:
