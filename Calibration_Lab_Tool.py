@@ -174,8 +174,6 @@ TR = {
         "op_pt_sys": "Pontos de Operação — Rotação Variável",
         "op_Q": "Vazão no ponto de operação",
         "op_H": "Altura manométrica no ponto de operação",
-        "sys20": "Sistema — abertura 20%",
-        "sys100": "Sistema — abertura 100%",
         "sys_user": "Sistema — abertura definida pelo usuário",
         "sys_base": "Base Pipe (Sem Válvula)",
         "pump_nom": "Bomba — {f} Hz (nominal)",
@@ -210,7 +208,8 @@ TR = {
         "cfg_succ": "Configuração salva com sucesso!",
         "cfg_lsucc": "Configuração carregada com sucesso!",
         "cfg_empty": "Nenhuma configuração salva.",
-        "hide_ref": "👁️ Ocultar curvas de referência (20% e 100%)",
+        "hide_ref": "👁️ Ocultar curvas de referência (Pontos 1 e 3)",
+        "hide_dp": "👁️ Ocultar valores e linhas de ΔP",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -314,8 +313,6 @@ TR = {
         "op_pt_sys": "Operating Points — Variable Speed",
         "op_Q": "Flow at operating point",
         "op_H": "Head at operating point",
-        "sys20": "System — 20% opening",
-        "sys100": "System — 100% opening",
         "sys_user": "System — user-defined opening",
         "sys_base": "Base Pipe (No Valve)",
         "pump_nom": "Pump — {f} Hz (nominal)",
@@ -350,7 +347,8 @@ TR = {
         "cfg_succ": "Saved successfully!",
         "cfg_lsucc": "Loaded successfully!",
         "cfg_empty": "No saved configs.",
-        "hide_ref": "👁️ Hide reference curves (20% and 100%)",
+        "hide_ref": "👁️ Hide reference curves (Points 1 and 3)",
+        "hide_dp": "👁️ Hide ΔP values and lines",
     },
 }
 
@@ -549,53 +547,57 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         Qr = d['Qr']
         ax.plot(Qr, d.get('H_sys_base', []), color='gray', lw=1.5, ls='--', label='Base Pipe')
         
-        # Only plot reference curves if they were rendered in the interactive UI
+        lbl_ref1 = f"{d['op_ref1_val']}%"
+        lbl_ref3 = f"{d['op_ref3_val']}%"
+        lbl_usr  = f"{d['user_op']}%"
+
+        # Curvas de Referência
         if d.get('show_ref', True):
-            ax.plot(Qr, d['H_sys20'],  color='steelblue', lw=2, label='Sistema 20%' if PT else 'System 20%')
-            ax.plot(Qr, d['H_sys100'], color='royalblue', lw=2, label='Sistema 100%' if PT else 'System 100%')
+            ax.plot(Qr, d['H_sys_ref1'],  color='steelblue', lw=2, label=f'Sistema {lbl_ref1}' if PT else f'System {lbl_ref1}')
+            ax.plot(Qr, d['H_sys_ref3'], color='royalblue', lw=2, label=f'Sistema {lbl_ref3}' if PT else f'System {lbl_ref3}')
         
-        uop = d['user_op']
-        if uop not in (20, 100) or not d.get('show_ref', True):
-            ax.plot(Qr, d['H_sys_usr'], color='cornflowerblue', lw=1.5, ls=':', label=f"Sistema {uop}%" if PT else f"System {uop}%")
+        # Plot da curva de usuário se for diferente das referências ou as referências não estiverem ativas
+        if lbl_usr not in (lbl_ref1, lbl_ref3) or not d.get('show_ref', True):
+            ax.plot(Qr, d['H_sys_usr'], color='cornflowerblue', lw=1.5, ls=':', label=f"Sistema {lbl_usr}" if PT else f"System {lbl_usr}")
         
         ax.plot(d['Qmin'], d['Hmin'], color='#FFB300', lw=2, label=f"Bomba {d['pc_fmin']:.0f}Hz" if PT else f"Pump {d['pc_fmin']:.0f}Hz")
         ax.plot(d['Qmx'],  d['Hmx'],  color='#CC0000', lw=2, label=f"Bomba {d['pc_fmax']:.0f}Hz" if PT else f"Pump {d['pc_fmax']:.0f}Hz")
         if d['pc_freq0'] not in (d['pc_fmin'], d['pc_fmax']):
             ax.plot(d['Qnom'], d['Hnom'], color='orangered', lw=1.5, ls=':', label=f"Bomba {d['pc_freq0']:.0f}Hz" if PT else f"Pump {d['pc_freq0']:.0f}Hz")
         
-        op_colors = {'20%': '#e67e00', f"{uop}%": '#8B008B', '100%': '#006400'}
+        op_colors = {lbl_ref1: '#e67e00', lbl_usr: '#8B008B', lbl_ref3: '#006400'}
         for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fnom', d['ops_fnom_pts']), ('fmax', d['ops_fmax_pts'])]:
             sym = {'fmin': 'v', 'fnom': 'o', 'fmax': '^'}[freq_key]
-            items = [(f"{uop}%", ops_t[1])]
+            items = [(lbl_usr, ops_t[1])]
             if d.get('show_ref', True):
-                items = [('20%', ops_t[0])] + items + [('100%', ops_t[2])]
+                items = [(lbl_ref1, ops_t[0])] + items + [(lbl_ref3, ops_t[2])]
                 
             for lbl, (q_op, h_op) in items:
                 if q_op is not None:
                     col = op_colors.get(lbl, 'black')
                     ax.plot(q_op, h_op, marker=sym, ms=8, color=col, zorder=5)
                     
-        # PLOT DA LINHA DE DELTA P E ANOTAÇÃO (NOVO)
-        from scipy.interpolate import CubicSpline
-        cs_sys_base = CubicSpline(Qr, d['H_sys_base'], extrapolate=True)
-        
-        items_to_annotate = [(f'{uop}%', d['ops_fnom_pts'][1])]
-        if d.get('show_ref', True):
-            items_to_annotate = [('20%', d['ops_fnom_pts'][0])] + items_to_annotate + [('100%', d['ops_fnom_pts'][2])]
+        # PLOT DA LINHA DE DELTA P E ANOTAÇÃO (PARA TODAS AS CURVAS DA BOMBA)
+        if d.get('show_dp', True):
+            from scipy.interpolate import CubicSpline
+            cs_sys_base = CubicSpline(Qr, d['H_sys_base'], extrapolate=True)
             
-        for valve_lbl, (q_op, h_op) in items_to_annotate:
-            if q_op is not None:
-                h_base_op = float(cs_sys_base(q_op))
-                dP_bar = (h_op - h_base_op) * d['hy_rho'] * 9.81 / 100000.0
-                col = op_colors.get(valve_lbl, 'black')
-                
-                # Linha vertical do Delta P
-                ax.plot([q_op, q_op], [h_base_op, h_op], color=col, linestyle=':', linewidth=1.5, zorder=4)
-                # Texto do Delta P
-                ax.annotate(f"ΔP={dP_bar:.1f} bar", xy=(q_op, (h_op + h_base_op)/2),
-                            xytext=(5, 0), textcoords="offset points",
-                            color=col, fontsize=8, va='center', ha='left',
-                            backgroundcolor='white')
+            for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fnom', d['ops_fnom_pts']), ('fmax', d['ops_fmax_pts'])]:
+                items_to_annotate = [(lbl_usr, ops_t[1])]
+                if d.get('show_ref', True):
+                    items_to_annotate = [(lbl_ref1, ops_t[0])] + items_to_annotate + [(lbl_ref3, ops_t[2])]
+                    
+                for valve_lbl, (q_op, h_op) in items_to_annotate:
+                    if q_op is not None:
+                        h_base_op = float(cs_sys_base(q_op))
+                        dP_bar = (h_op - h_base_op) * d['hy_rho'] * 9.81 / 100000.0
+                        col = op_colors.get(valve_lbl, 'black')
+                        
+                        ax.plot([q_op, q_op], [h_base_op, h_op], color=col, linestyle=':', linewidth=1.5, zorder=4, alpha=0.6)
+                        ax.annotate(f"ΔP={dP_bar:.1f} bar", xy=(q_op, (h_op + h_base_op)/2),
+                                    xytext=(5, 0), textcoords="offset points",
+                                    color=col, fontsize=7, va='center', ha='left',
+                                    backgroundcolor='white')
 
         if d['y_max']:
             ax.set_ylim(0, d['y_max'])
@@ -963,9 +965,13 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     st.markdown("---")
     st.subheader(S["sim_hdr"])
     
-    # Hide Reference Curves Toggle
-    hide_ref_curves = st.checkbox(S["hide_ref"], value=False, key="hide_ref_curves")
-    show_ref = not hide_ref_curves
+    col_toggles1, col_toggles2 = st.columns(2)
+    with col_toggles1:
+        hide_ref_curves = st.checkbox(S["hide_ref"], value=False, key="hide_ref_curves")
+        show_ref = not hide_ref_curves
+    with col_toggles2:
+        hide_dp_lines = st.checkbox(S["hide_dp"], value=False, key="hide_dp_lines")
+        show_dp = not hide_dp_lines
 
     # Slider interativo posicionado imediatamente acima do gráfico
     if n_ctrl > 0:
@@ -978,6 +984,19 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     import numpy as _np2
 
     Qr = np.linspace(0, hy_qmax, 400)
+    
+    # ── Determinar Ponto 1 e Ponto 3 a partir da entrada da primeira válvula ──
+    if n_ctrl > 0 and len(fcv_curve_data) > 0:
+        _ops_primeira, _, _ = fcv_curve_data[0]
+        op_ref1 = float(_ops_primeira[0])
+        op_ref3 = float(_ops_primeira[-1])
+    else:
+        op_ref1 = 20.0
+        op_ref3 = 100.0
+
+    lbl_ref1 = f"{op_ref1:g}%"
+    lbl_ref3 = f"{op_ref3:g}%"
+    lbl_usr  = f"{user_op:g}%"
 
     # ── System curves at 3 valve openings + Base Pipe ─────────────────────
     def sys_curve_base(Q_arr):
@@ -1004,8 +1023,8 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         return _np2.array(H)
 
     H_sys_base = sys_curve_base(Qr)
-    H_sys20    = sys_curve(Qr, 20)
-    H_sys100   = sys_curve(Qr, 100)
+    H_sys_ref1 = sys_curve(Qr, op_ref1)
+    H_sys_ref3 = sys_curve(Qr, op_ref3)
     H_sys_usr  = sys_curve(Qr, user_op)
 
     # ── Pump curves via affinity laws ──────────────────────────────────────
@@ -1044,9 +1063,9 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                     pass
         return ops[-1] if ops else (None, None)
 
-    op20   = find_op(cs_nom, Qmax_nom, H_sys20)
-    op100  = find_op(cs_nom, Qmax_nom, H_sys100)
-    op_usr = find_op(cs_nom, Qmax_nom, H_sys_usr)
+    op_ref1_nom = find_op(cs_nom, Qmax_nom, H_sys_ref1)
+    op_ref3_nom = find_op(cs_nom, Qmax_nom, H_sys_ref3)
+    op_usr      = find_op(cs_nom, Qmax_nom, H_sys_usr)
 
     # ── Plot ──────────────────────────────────────────────────────────────
     fh = go.Figure()
@@ -1055,15 +1074,15 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         name=S["sys_base"], line=dict(color='gray', width=2, dash='dash')))
 
     if show_ref:
-        fh.add_trace(go.Scatter(x=Qr, y=H_sys20, mode='lines',
-            name=S["sys20"], line=dict(color='steelblue', width=2.5)))
-        fh.add_trace(go.Scatter(x=Qr, y=H_sys100, mode='lines',
-            name=S["sys100"], line=dict(color='royalblue', width=2.5)))
+        fh.add_trace(go.Scatter(x=Qr, y=H_sys_ref1, mode='lines',
+            name=f'Sistema {lbl_ref1}' if lang == 'pt' else f'System {lbl_ref1}', line=dict(color='steelblue', width=2.5)))
+        fh.add_trace(go.Scatter(x=Qr, y=H_sys_ref3, mode='lines',
+            name=f'Sistema {lbl_ref3}' if lang == 'pt' else f'System {lbl_ref3}', line=dict(color='royalblue', width=2.5)))
     
-    # Always plot the user curve unless it perfectly overlaps with 20/100 and references are shown
-    if user_op not in (20, 100) or not show_ref:
+    # Always plot the user curve unless it perfectly overlaps and references are shown
+    if lbl_usr not in (lbl_ref1, lbl_ref3) or not show_ref:
         fh.add_trace(go.Scatter(x=Qr, y=H_sys_usr, mode='lines',
-            name=S["sys_user"] + f" ({user_op}%)",
+            name=S["sys_user"] + f" ({lbl_usr})",
             line=dict(color='cornflowerblue', width=2.5 if not show_ref else 2, dash='solid' if not show_ref else 'dot')))
 
     fh.add_trace(go.Scatter(x=Qmin, y=Hmin, mode='lines',
@@ -1075,22 +1094,22 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             name=S["pump_nom"].format(f=pc_freq0), line=dict(color='orangered', width=2, dash='dot')))
 
     def ops_for_freq(cs_f, Qmax_f):
-        return (find_op(cs_f, Qmax_f, H_sys20), find_op(cs_f, Qmax_f, H_sys_usr), find_op(cs_f, Qmax_f, H_sys100))
+        return (find_op(cs_f, Qmax_f, H_sys_ref1), find_op(cs_f, Qmax_f, H_sys_usr), find_op(cs_f, Qmax_f, H_sys_ref3))
 
     ops_fmin = ops_for_freq(cs_fmin, Qmax_min)
-    ops_fnom = (op20, op_usr, op100)
+    ops_fnom = (op_ref1_nom, op_usr, op_ref3_nom)
     ops_fmax = ops_for_freq(cs_fmax, Qmax_mx)
 
-    op_valve_colors = {'20%': '#e67e00', f'{user_op}%': '#8B008B', '100%': '#006400'}
+    op_valve_colors = {lbl_ref1: '#e67e00', lbl_usr: '#8B008B', lbl_ref3: '#006400'}
     op_speed_symbols = {'fmin': ('triangle-down', pc_fmin), 'fnom': ('circle', pc_freq0), 'fmax': ('triangle-up', pc_fmax)}
 
     for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
         sym, freq_val = op_speed_symbols[speed_key]
         
         # Filter points to plot based on the toggle
-        items_to_plot = [(f'{user_op}%', ops_tuple[1])]
+        items_to_plot = [(lbl_usr, ops_tuple[1])]
         if show_ref:
-            items_to_plot = [('20%', ops_tuple[0])] + items_to_plot + [('100%', ops_tuple[2])]
+            items_to_plot = [(lbl_ref1, ops_tuple[0])] + items_to_plot + [(lbl_ref3, ops_tuple[2])]
             
         for valve_lbl, (q_op, h_op) in items_to_plot:
             if q_op is not None:
@@ -1102,30 +1121,35 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                     textfont=dict(color=col, size=11), textposition='middle right', showlegend=False
                 ))
 
-    # Calculate and draw dP Annotations only for visible nominal points
-    cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
-    items_to_annotate = [(f'{user_op}%', op_usr)]
-    if show_ref:
-        items_to_annotate = [('20%', op20)] + items_to_annotate + [('100%', op100)]
+    # Calculate and draw dP Annotations para TODAS as curvas da bomba
+    if show_dp:
+        cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
         
-    for valve_lbl, (q_op, h_op) in items_to_annotate:
-        if q_op is not None:
-            h_base_op = float(cs_sys_base(q_op))
-            dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0
+        for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
+            items_to_annotate = [(lbl_usr, ops_tuple[1])]
+            if show_ref:
+                items_to_annotate = [(lbl_ref1, ops_tuple[0])] + items_to_annotate + [(lbl_ref3, ops_tuple[2])]
+                
+            for valve_lbl, (q_op, h_op) in items_to_annotate:
+                if q_op is not None:
+                    h_base_op = float(cs_sys_base(q_op))
+                    dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0
 
-            fh.add_shape(type="line",
-                x0=q_op, y0=h_base_op, x1=q_op, y1=h_op,
-                line=dict(color=op_valve_colors.get(valve_lbl, 'black'), width=2, dash="dot")
-            )
+                    fh.add_shape(type="line",
+                        x0=q_op, y0=h_base_op, x1=q_op, y1=h_op,
+                        line=dict(color=op_valve_colors.get(valve_lbl, 'black'), width=2, dash="dot"),
+                        opacity=0.6
+                    )
 
-            fh.add_annotation(
-                x=q_op, y=(h_op + h_base_op)/2,
-                text=f"ΔP={dP_bar:.1f} bar",
-                showarrow=False,
-                xanchor="left",
-                xshift=8,
-                font=dict(color=op_valve_colors.get(valve_lbl, 'black'), size=11, family="Arial")
-            )
+                    fh.add_annotation(
+                        x=q_op, y=(h_op + h_base_op)/2,
+                        text=f"ΔP={dP_bar:.1f} bar",
+                        showarrow=False,
+                        xanchor="left",
+                        xshift=8,
+                        font=dict(color=op_valve_colors.get(valve_lbl, 'black'), size=11, family="Arial"),
+                        bgcolor="rgba(255,255,255,0.7)"
+                    )
 
     fh.add_vline(x=hy_qmax, line_dash="dot", line_color="gray", annotation_text=f"Q={hy_qmax:.0f} m³/h", annotation_position="top right")
 
@@ -1136,20 +1160,20 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         title=S["hy_title"], xaxis_title=S["hy_px"], yaxis_title=S["hy_py"],
         xaxis=dict(range=[0, hy_qmax * 1.05]), yaxis=dict(range=[0, y_max]),
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
-        template="plotly_white", hovermode="x unified", height=560)
+        template="plotly_white", hovermode="x unified", height=600)
     
     st.plotly_chart(fh, use_container_width=True)
 
-    if any(q is not None for q, _ in [op20, op100, op_usr]):
+    if any(q is not None for q, _ in [op_ref1_nom, op_ref3_nom, op_usr]):
         st.subheader(S["op_pt_sys"])
         def make_op_df(ops_tuple):
-            o20_, ousr_, o100_ = ops_tuple
+            o1_, ousr_, o3_ = ops_tuple
             rows_ = []
             
             # Filter rows based on the toggle
-            items = [(f"{user_op}%", ousr_)]
+            items = [(lbl_usr, ousr_)]
             if show_ref:
-                items = [("20%", o20_)] + items + [("100%", o100_)]
+                items = [(lbl_ref1, o1_)] + items + [(lbl_ref3, o3_)]
                 
             for lbl, (q_op, h_op) in items:
                 rows_.append({
@@ -1170,18 +1194,19 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             st.dataframe(make_op_df(ops_fmax), use_container_width=True, hide_index=True)
 
         def ops_as_list(ops_tuple):
-            o20_, ousr_, o100_ = ops_tuple
-            return [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]
+            o1_, ousr_, o3_ = ops_tuple
+            return [(lbl_ref1, o1_), (lbl_usr, ousr_), (lbl_ref3, o3_)]
 
         st.session_state['hy_data'] = {
             'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
             'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
             'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
-            'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
-            'user_op': user_op, 'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
+            'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys_ref1': H_sys_ref1, 'H_sys_ref3': H_sys_ref3, 'H_sys_usr': H_sys_usr,
+            'user_op': user_op, 'op_ref1_val': op_ref1, 'op_ref3_val': op_ref3,
+            'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
             'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
-            'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref
+            'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref, 'show_dp': show_dp
         }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1278,7 +1303,7 @@ with tab_th:
         t1.metric(S["r_th"], hm(t110_h))
         t2.metric(S["r_cw"], hm(cwin_h) if cwin_h is not None else S["na"])
         t3.metric(S["r_eh"], f"{E_heat:.1f} kWh")
-        t4.metric(S["r_ec"], f"{E_cal:.1f} kWh"   if E_cal   is not None else S["na"])
+        t4.metric(S["r_ec"], f"{E_cal:.1f} kWh"   if E_cal  is not None else S["na"])
         t5.metric(S["r_et"], f"{E_total:.1f} kWh"  if E_total is not None else S["na"])
 
         fig = go.Figure()
