@@ -23,7 +23,7 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SAVE / LOAD CONFIGURATIONS LOGIC (ATUALIZADO COM CALLBACKS)
+# SAVE / LOAD CONFIGURATIONS LOGIC (ATUALIZADO)
 # ─────────────────────────────────────────────────────────────────────────────
 CONFIG_FILE = "lab_configs.json"
 
@@ -42,10 +42,16 @@ def save_config_callback():
     configs = get_saved_configs()
     data_to_save = {}
     for k, v in st.session_state.items():
-        # Evita salvar arrays pesados, dados plotados, botões ou chaves de controle de UI
-        if k not in ["th_data", "hy_data", "hy_sim_active", "new_cfg_name", "sel_cfg_name"] and not k.endswith("btn"):
-            if isinstance(v, (int, float, str, bool, list, dict)):
-                data_to_save[k] = v
+        # Ignora chaves internas de dados
+        if k in ["th_data", "hy_data", "hy_sim_active", "new_cfg_name", "sel_cfg_name"]:
+            continue
+        # Ignora ESTRITAMENTE qualquer chave de botão para evitar StreamlitValueAssignmentNotAllowedError
+        if "btn" in k.lower():
+            continue
+            
+        if isinstance(v, (int, float, str, bool, list, dict)):
+            data_to_save[k] = v
+            
     configs[name] = data_to_save
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(configs, f, indent=4)
@@ -56,9 +62,13 @@ def load_config_callback():
     configs = get_saved_configs()
     if name in configs:
         for k, v in configs[name].items():
-            # Não sobrescreve os próprios inputs de seleção
-            if k not in ["new_cfg_name", "sel_cfg_name"]:
-                st.session_state[k] = v
+            # Ignora chaves de seleção e, CRITICAMENTE, botões salvos em versões anteriores do JSON
+            if k in ["new_cfg_name", "sel_cfg_name"]:
+                continue
+            if "btn" in k.lower():
+                continue
+                
+            st.session_state[k] = v
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRANSLATIONS
@@ -775,7 +785,7 @@ with st.sidebar:
                              if lang=="pt" else
                              "Run at least one simulation to enable the report."))
 
-    # ── SAVE/LOAD WIDGETS (AGORA COM CALLBACKS) ──
+    # ── SAVE/LOAD WIDGETS (COM CALLBACKS) ──
     st.divider()
     st.subheader(S["cfg_hdr"])
     cfg_names = list(get_saved_configs().keys())
