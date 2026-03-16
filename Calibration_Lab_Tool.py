@@ -145,40 +145,36 @@ TR = {
         "fittings_help": "**Conexões e válvulas de bloqueio** *(perdas localizadas — método K)*\n\n| Componente | K |\n|---|---|\n| Curva 90° | 0,30 |\n| Curva 45° | 0,20 |\n| Tê | 0,50 |\n| Válvula esfera | 0,10 |\n| V. borboleta bloqueio | 0,50 |",
         "hy_global_note": "ℹ️ Diâmetro, comprimento, rugosidade e desnível são definidos nas **Configurações Globais** (barra lateral). Altere lá para refletir aqui.",
         "hy_fittings": "Conexões e Válvulas de Bloqueio",
-        "kv_curve_help": "Insira 3 pontos da curva do fabricante: abertura (%) e Kv correspondente. A interpolação é log-linear, adequada para válvulas de equal-percentage.",
+        "kv_curve_help": "Insira 3 pontos da curva da válvula: abertura (%) e Kv correspondente. A interpolação é log-linear (equal-percentage).",
         "kv_op_j": "Abertura (%)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
-        "n_ctrl_lbl": "Quantidade de válvulas de controle:",
-        "n_ctrl_help": "Cada válvula de controle possui Kv e abertura independentes. Em loop fechado, válvulas em série somam as perdas de pressão.",
-        "ctrl_series_note": "ℹ️ As válvulas de controle estão em **paralelo** no loop — os valores de Kv de cada linha são somados.",
-        "ctrl_v": "Válvula de Controle",
+        "ctrl_v": "Válvula de Controle (FCV)",
         "op_lbl": "Abertura da válvula (%)",
-        "op_help": "Deslize para ver o gráfico atualizar em tempo real.",
+        "op_help": "Deslize para ver a curva do sistema atualizar em tempo real.",
         "fl_hy": "Fluido (para hidráulica)",
         "hy_rho": "Densidade (kg/m³):",
         "hy_mu_h": "Viscosidade nominal de processo (cP):",
-        "hy_mu_h_h": "Viscosidade na temperatura nominal de calibração (mesma da aba Simulação Térmica).",
-        "hy_qmax": "Vazão máxima da curva (m³/h):",
-        "hy_qmax_h": "Limite direito do eixo X do gráfico. Use a vazão máxima do laboratório.",
+        "hy_mu_h_h": "Viscosidade na temperatura nominal de calibração.",
+        "hy_qmax": "Vazão máxima do gráfico (m³/h):",
+        "hy_qmax_h": "Limite direito do eixo X do gráfico.",
         "pump_curve_hdr": "Curva da Bomba (5 pontos — rotação nominal)",
-        "pump_curve_help": "Insira 5 pontos Q×H da curva do fabricante na rotação nominal. O software aplica as leis de semelhança para calcular as curvas em outras frequências.",
+        "pump_curve_help": "Insira 5 pontos Q×H da curva do fabricante na rotação nominal.",
         "pc_poles": "Número de polos do motor:",
-        "pc_poles_help": "2 polos → 3600 RPM (60 Hz) | 4 polos → 1800 RPM (60 Hz) | 6 polos → 1200 RPM (60 Hz)",
-        "pc_freq": "Frequência nominal da curva fornecida (Hz):",
-        "pc_freq_help": "Frequência em que o fabricante mediu os 5 pontos. Geralmente 60 Hz.",
-        "pc_fmin": "Frequência mínima do inversor (Hz):",
-        "pc_fmax": "Frequência máxima do inversor (Hz):",
+        "pc_poles_help": "2 polos → 3600 RPM | 4 polos → 1800 RPM | 6 polos → 1200 RPM",
+        "pc_freq": "Frequência nominal fornecida (Hz):",
+        "pc_fmin": "Frequência mínima VFD (Hz):",
+        "pc_fmax": "Frequência máxima VFD (Hz):",
         "pc_Q_lbl": "Q{} (m³/h):",
         "pc_H_lbl": "H{} (m):",
         "pc_pt": "Ponto",
         "op_pt_sys": "Pontos de Operação — Rotação Variável",
-        "op_Q": "Vazão no ponto de operação",
-        "op_H": "Altura manométrica no ponto de operação",
-        "sys_user": "Sistema — abertura definida pelo usuário",
-        "sys_base": "Base Pipe (Sem Válvula)",
+        "op_Q": "Vazão",
+        "op_H": "Altura Manométrica",
+        "sys_user": "Sistema — Abertura definida",
+        "sys_base": "Base Pipe (Sem FCV)",
         "pump_nom": "Bomba — {f} Hz (nominal)",
-        "pump_fmin": "Bomba — {f} Hz (mín. inversor)",
-        "pump_fmax": "Bomba — {f} Hz (máx. inversor)",
+        "pump_fmin": "Bomba — {f} Hz (mínimo)",
+        "pump_fmax": "Bomba — {f} Hz (máximo)",
         "sim_hdr": "🎛️ Simulação Interativa (Atualização em Tempo Real)",
         "kv_calc": "**Calculadora rápida de Kv:**",
         "kv_Q": "Q (m³/h):",
@@ -188,7 +184,7 @@ TR = {
         "hy_title": "Curva do Sistema – Altura Manométrica vs Vazão",
         "hy_px": "Vazão (m³/h)", "hy_py": "Altura Manométrica (m)",
         "seg_hdr": "Segmentos de Tubulação",
-        "seg_note": "ℹ️ Cada segmento representa um trecho com diâmetro diferente. Vazão Q é conservada em série — apenas a velocidade muda. Rugosidade e desnível são globais (barra lateral).",
+        "seg_note": "ℹ️ Vazão Q é conservada em série. Rugosidade e desnível são globais.",
         "seg_add": "➕ Adicionar segmento",
         "seg_del": "🗑️ Remover último",
         "seg_dn":  "DN int. (m)",
@@ -205,17 +201,20 @@ TR = {
         "cfg_load": "Carregar Salva",
         "cfg_name": "Nome da configuração:",
         "cfg_sel": "Selecione para carregar:",
-        "cfg_succ": "Configuração salva com sucesso!",
-        "cfg_lsucc": "Configuração carregada com sucesso!",
+        "cfg_succ": "Salvo com sucesso!",
+        "cfg_lsucc": "Carregado com sucesso!",
         "cfg_empty": "Nenhuma configuração salva.",
-        "hide_ref": "👁️ Ocultar curvas de referência (Pontos 1 e 3)",
-        "hide_dp": "👁️ Ocultar valores e linhas de ΔP",
+        "hide_ref": "👁️ Ocultar curvas de referência (Pts 1 e 3)",
+        "hide_dp": "👁️ Ocultar valores de ΔP",
         "ro_hdr": "🕳️ Orifício de Restrição (RO)",
-        "ro_help": "O RO adiciona uma restrição permanente à tubulação (curva Base Pipe). Sua perda de carga varia com o quadrado da vazão.",
-        "ro_enable": "Habilitar RO a jusante",
+        "ro_help": "Calcula a Perda de Carga Permanente (PPL) usando a equação ISO 5167. Esta restrição é adicionada fisicamente à curva do Base Pipe.",
+        "ro_enable": "Habilitar Placa de Orifício a Jusante",
+        "ro_D_lbl": "Diâmetro interno do tubo D (m):",
+        "ro_d_lbl": "Diâmetro do orifício d (m):",
         "ro_q_des": "Vazão de projeto do RO (m³/h):",
-        "ro_dp_des": "ΔP de projeto do RO (bar):",
-        "ro_kv_res": "Kv fixo calculado para o RO: {kv:.1f} m³/h·bar⁰·⁵",
+        "ro_beta": "Razão Beta (β): {beta:.3f}",
+        "ro_dp_calc": "ΔP Permanente Calculado: {dp:.2f} bar",
+        "ro_kv_res": "Kv equivalente do orifício: {kv:.1f} m³/h·bar⁰·⁵",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -286,44 +285,40 @@ TR = {
         "hy_tee": "No. of tees:",
         "hy_ve": "No. of ball valves:",
         "hy_vb": "No. of isolation butterfly valves (K=0.5):",
-        "hy_vb_help": "Normally-open butterfly valves used for branch isolation (fixed K=0.5). Do NOT include control valves here — configure them below with variable Kv.",
+        "hy_vb_help": "Normally-open butterfly valves used for branch isolation (fixed K=0.5). Do NOT include control valves here.",
         "fittings_help": "**Fittings & isolation valves** *(minor losses — K method)*\n\n| Component | K |\n|---|---|\n| 90° elbow | 0.30 |\n| 45° elbow | 0.20 |\n| Tee | 0.50 |\n| Ball valve | 0.10 |\n| Isolation butterfly | 0.50 |",
         "hy_global_note": "ℹ️ Inner diameter, length, roughness, and static head are set in **Global Parameters** (sidebar). Edit there to reflect here.",
         "hy_fittings": "Fittings & Isolation Valves",
-        "kv_curve_help": "Enter 3 points from the manufacturer's curve: opening (%) and corresponding Kv. Log-linear interpolation is used, appropriate for equal-percentage valves.",
+        "kv_curve_help": "Enter 3 points from the valve manufacturer's curve: opening (%) and corresponding Kv. Log-linear interpolation is used.",
         "kv_op_j": "Opening (%)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
-        "n_ctrl_lbl": "Number of control valves:",
-        "n_ctrl_help": "Each control valve has independent Kv and opening. In a closed loop, series valves add their pressure drops directly.",
-        "ctrl_series_note": "ℹ️ Control valves are in **parallel** in the loop — their effective Kv values are summed.",
-        "ctrl_v": "Control Valve",
+        "ctrl_v": "Control Valve (FCV)",
         "op_lbl": "Valve opening (%)",
         "op_help": "Slide to see the chart update in real-time.",
         "fl_hy": "Fluid (for hydraulics)",
         "hy_rho": "Density (kg/m³):",
         "hy_mu_h": "Nominal process viscosity (cP):",
-        "hy_mu_h_h": "Viscosity at nominal calibration temperature (same as Thermal Simulation tab).",
-        "hy_qmax": "Maximum flow rate for curve (m³/h):",
-        "hy_qmax_h": "Right limit of the X axis. Use the laboratory maximum flow rate.",
+        "hy_mu_h_h": "Viscosity at nominal calibration temperature.",
+        "hy_qmax": "Maximum chart flow rate (m³/h):",
+        "hy_qmax_h": "Right limit of the X axis.",
         "pump_curve_hdr": "Pump Curve (5 points — nominal speed)",
-        "pump_curve_help": "Enter 5 Q×H points from the manufacturer curve at nominal speed. The software applies affinity laws to calculate curves at other frequencies.",
+        "pump_curve_help": "Enter 5 Q×H points from the manufacturer curve at nominal speed.",
         "pc_poles": "Motor number of poles:",
-        "pc_poles_help": "2 poles → 3600 RPM (60 Hz) | 4 poles → 1800 RPM (60 Hz) | 6 poles → 1200 RPM (60 Hz)",
-        "pc_freq": "Nominal frequency of the provided curve (Hz):",
-        "pc_freq_help": "Frequency at which the manufacturer measured the 5 points. Usually 60 Hz.",
+        "pc_poles_help": "2 poles → 3600 RPM | 4 poles → 1800 RPM | 6 poles → 1200 RPM",
+        "pc_freq": "Nominal curve frequency (Hz):",
         "pc_fmin": "VFD minimum frequency (Hz):",
         "pc_fmax": "VFD maximum frequency (Hz):",
         "pc_Q_lbl": "Q{} (m³/h):",
         "pc_H_lbl": "H{} (m):",
         "pc_pt": "Point",
         "op_pt_sys": "Operating Points — Variable Speed",
-        "op_Q": "Flow at operating point",
-        "op_H": "Head at operating point",
-        "sys_user": "System — user-defined opening",
-        "sys_base": "Base Pipe (No Valve)",
+        "op_Q": "Flow",
+        "op_H": "Head",
+        "sys_user": "System — User opening",
+        "sys_base": "Base Pipe (No FCV)",
         "pump_nom": "Pump — {f} Hz (nominal)",
-        "pump_fmin": "Pump — {f} Hz (VFD min)",
-        "pump_fmax": "Pump — {f} Hz (VFD max)",
+        "pump_fmin": "Pump — {f} Hz (min)",
+        "pump_fmax": "Pump — {f} Hz (max)",
         "sim_hdr": "🎛️ Interactive Simulation (Real-time update)",
         "kv_calc": "**Quick Kv calculator:**",
         "kv_Q": "Q (m³/h):",
@@ -333,7 +328,7 @@ TR = {
         "hy_title": "System Curve – Head vs Flow Rate",
         "hy_px": "Flow Rate (m³/h)", "hy_py": "Head (m)",
         "seg_hdr": "Piping Segments",
-        "seg_note": "ℹ️ Each segment represents a pipe section with a different diameter. Flow Q is conserved in series — only velocity changes. Roughness and static head are global (sidebar).",
+        "seg_note": "ℹ️ Flow Q is conserved in series. Roughness and static head are global.",
         "seg_add": "➕ Add segment",
         "seg_del": "🗑️ Remove last",
         "seg_dn":  "Inner diam. (m)",
@@ -353,14 +348,17 @@ TR = {
         "cfg_succ": "Saved successfully!",
         "cfg_lsucc": "Loaded successfully!",
         "cfg_empty": "No saved configs.",
-        "hide_ref": "👁️ Hide reference curves (Points 1 and 3)",
-        "hide_dp": "👁️ Hide ΔP values and lines",
+        "hide_ref": "👁️ Hide reference curves (Pts 1 & 3)",
+        "hide_dp": "👁️ Hide ΔP values",
         "ro_hdr": "🕳️ Restriction Orifice (RO)",
-        "ro_help": "The RO adds a permanent restriction to the piping (Base Pipe curve). Its pressure drop varies with the square of the flow rate.",
-        "ro_enable": "Enable downstream RO",
+        "ro_help": "Calculates Permanent Pressure Loss (PPL) using the ISO 5167 equation. This restriction is physically added to the Base Pipe curve.",
+        "ro_enable": "Enable Downstream Orifice Plate",
+        "ro_D_lbl": "Pipe internal diameter D (m):",
+        "ro_d_lbl": "Orifice diameter d (m):",
         "ro_q_des": "RO design flow rate (m³/h):",
-        "ro_dp_des": "RO design ΔP (bar):",
-        "ro_kv_res": "Fixed calculated RO Kv: {kv:.1f} m³/h·bar⁰·⁵",
+        "ro_beta": "Beta Ratio (β): {beta:.3f}",
+        "ro_dp_calc": "Calculated Permanent ΔP: {dp:.2f} bar",
+        "ro_kv_res": "Equivalent orifice Kv: {kv:.1f} m³/h·bar⁰·⁵",
     },
 }
 
@@ -447,7 +445,7 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
                  seg['ve']  * 0.1 + K_red)
         Hl_total += K_seg * V**2 / (2 * 9.81)
 
-    # Restriction Orifice permanent loss
+    # Restriction Orifice permanent loss dynamically added to Base Pipe
     if kv_ro and kv_ro > 0:
         # Conversion: dP(bar) to Head(m) = dP * 100000 / (rho * g)
         H_ro = (Q / kv_ro)**2 * (100.0 / 9.81)
@@ -569,12 +567,10 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         lbl_ref3 = f"{d['op_ref3_val']}%"
         lbl_usr  = f"{d['user_op']}%"
 
-        # Curvas de Referência
         if d.get('show_ref', True):
             ax.plot(Qr, d['H_sys_ref1'],  color='steelblue', lw=2, label=f'Sistema {lbl_ref1}' if PT else f'System {lbl_ref1}')
             ax.plot(Qr, d['H_sys_ref3'], color='royalblue', lw=2, label=f'Sistema {lbl_ref3}' if PT else f'System {lbl_ref3}')
         
-        # Plot da curva de usuário se for diferente das referências ou as referências não estiverem ativas
         if lbl_usr not in (lbl_ref1, lbl_ref3) or not d.get('show_ref', True):
             ax.plot(Qr, d['H_sys_usr'], color='cornflowerblue', lw=1.5, ls=':', label=f"Sistema {lbl_usr}" if PT else f"System {lbl_usr}")
         
@@ -595,7 +591,6 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
                     col = op_colors.get(lbl, 'black')
                     ax.plot(q_op, h_op, marker=sym, ms=8, color=col, zorder=5)
                     
-        # PLOT DA LINHA DE DELTA P E ANOTAÇÃO (PARA TODAS AS CURVAS DA BOMBA)
         if d.get('show_dp', True):
             from scipy.interpolate import CubicSpline
             cs_sys_base = CubicSpline(Qr, d['H_sys_base'], extrapolate=True)
@@ -671,11 +666,11 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         if hy_data.get('ro_active'):
             hy_inp.append([
                 ("RO Habilitado" if PT else "RO Enabled"), ("Sim" if PT else "Yes"), 
-                ("Kv Orifício" if PT else "Orifice Kv"), f"{hy_data.get('kv_ro', 0):.1f}"
+                ("Diâm. Tubo / Orifício" if PT else "Pipe / Orifice Dia."), f"{hy_data.get('ro_D', 0):.4f} m / {hy_data.get('ro_d', 0):.4f} m"
             ])
             hy_inp.append([
-                ("RO Vazão Projeto" if PT else "RO Design Flow"), f"{hy_data.get('ro_q_des', 0):.0f} m³/h",
-                ("RO ΔP Projeto" if PT else "RO Design ΔP"), f"{hy_data.get('ro_dp_des', 0):.1f} bar"
+                ("RO Vazão / Beta" if PT else "RO Flow / Beta"), f"{hy_data.get('ro_q_des', 0):.0f} m³/h / {hy_data.get('ro_beta', 0):.3f}",
+                ("RO ΔP Permanente" if PT else "RO Permanent ΔP"), f"{hy_data.get('ro_dp_des', 0):.2f} bar"
             ])
             
         th2 = Table(hy_inp, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
@@ -933,35 +928,32 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         kv_r_  = kk3.number_input(S["kv_rho"], value=850.0, key="kvrho")
         st.success(S["kv_res"].format(kv=kv_Q_/math.sqrt(kv_dP_*kv_r_/1000)))
 
-    n_ctrl = st.number_input(S["n_ctrl_lbl"], min_value=0, value=1, step=1, help=S["n_ctrl_help"], key="n_ctrl")
-
     fcv_curve_data = []
 
-    for i in range(int(n_ctrl)):
-        st.markdown(f"**{S['ctrl_v']} {i+1}**")
-        st.caption(S["kv_curve_help"])
-        default_cv_pts = [(25, 45), (50, 394), (100, 913)]
-        cv_pts_op = []; cv_pts_kv = []
-        cc = st.columns(3)
-        for j, (dop, dkv) in enumerate(default_cv_pts):
-            with cc[j]:
-                st.markdown(f"**{S['pc_pt']} {j+1}**")
-                op_j = st.number_input(S["kv_op_j"], value=float(dop), min_value=0.0, max_value=100.0, key=f"cvop_{i}_{j}")
-                kv_j = st.number_input(S["kv_kv_j"], value=float(dkv), min_value=0.0, key=f"cvkv_{i}_{j}")
-                cv_pts_op.append(op_j); cv_pts_kv.append(kv_j)
+    # Hardcoded single control valve logic
+    st.caption(S["kv_curve_help"])
+    default_cv_pts = [(25, 45), (50, 394), (100, 913)]
+    cv_pts_op = []; cv_pts_kv = []
+    cc = st.columns(3)
+    for j, (dop, dkv) in enumerate(default_cv_pts):
+        with cc[j]:
+            st.markdown(f"**{S['pc_pt']} {j+1}**")
+            op_j = st.number_input(S["kv_op_j"], value=float(dop), min_value=0.0, max_value=100.0, key=f"cvop_0_{j}")
+            kv_j = st.number_input(S["kv_kv_j"], value=float(dkv), min_value=0.0, key=f"cvkv_0_{j}")
+            cv_pts_op.append(op_j); cv_pts_kv.append(kv_j)
 
-        import numpy as _np
-        from scipy.interpolate import interp1d as _interp1d
-        _ops = _np.array(cv_pts_op, dtype=float)
-        _kvs = _np.array(cv_pts_kv, dtype=float)
-        sort_i = _np.argsort(_ops)
-        _ops, _kvs = _ops[sort_i], _kvs[sort_i]
-        
-        _kvs_safe = _np.where(_kvs <= 0, 1e-5, _kvs)
-        _log_kv = _np.log(_kvs_safe)
-        
-        _interp = _interp1d(_ops, _log_kv, kind='linear', fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
-        fcv_curve_data.append((_ops, _kvs, _interp))
+    import numpy as _np
+    from scipy.interpolate import interp1d as _interp1d
+    _ops = _np.array(cv_pts_op, dtype=float)
+    _kvs = _np.array(cv_pts_kv, dtype=float)
+    sort_i = _np.argsort(_ops)
+    _ops, _kvs = _ops[sort_i], _kvs[sort_i]
+    
+    _kvs_safe = _np.where(_kvs <= 0, 1e-5, _kvs)
+    _log_kv = _np.log(_kvs_safe)
+    
+    _interp = _interp1d(_ops, _log_kv, kind='linear', fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
+    fcv_curve_data.append((_ops, _kvs, _interp))
 
     st.subheader(S["fl_hy"])
     fc1, fc2, fc3 = st.columns(3)
@@ -970,20 +962,45 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     hy_mu_hot = hy_mu_cP / 1000.0
     hy_qmax   = fc3.number_input(S["hy_qmax"], min_value=50.0, value=900.0, help=S["hy_qmax_h"], key="hy_qmax")
 
+    # ── Restriction Orifice (ISO 5167 Physics) ──
     st.subheader(S["ro_hdr"])
     st.info(S["ro_help"])
     ro_active = st.checkbox(S["ro_enable"], value=False, key="ro_active")
     kv_ro_active = None
 
     if ro_active:
-        rc1, rc2 = st.columns(2)
-        ro_q_des = rc1.number_input(S["ro_q_des"], value=834.0, key="ro_q_des")
-        ro_dp_des = rc2.number_input(S["ro_dp_des"], value=2.5, min_value=0.01, key="ro_dp_des")
+        rc1, rc2, rc3 = st.columns(3)
+        ro_D = rc1.number_input(S["ro_D_lbl"], value=d_inner, format="%.4f", key="ro_D")
+        ro_d = rc2.number_input(S["ro_d_lbl"], value=d_inner*0.5, format="%.4f", key="ro_d")
+        ro_q_des = rc3.number_input(S["ro_q_des"], value=834.0, key="ro_q_des")
         
-        # Calculate plate Kv dynamically based on design parameters and fluid density
-        sg = hy_rho / 1000.0
-        kv_ro_active = ro_q_des / math.sqrt(ro_dp_des / sg)
-        st.success(S["ro_kv_res"].format(kv=kv_ro_active))
+        if ro_d >= ro_D or ro_d <= 0:
+            st.error("O diâmetro do orifício deve ser maior que 0 e menor que o diâmetro do tubo." if lang == "pt" else "Orifice diameter must be > 0 and < Pipe ID.")
+            ro_beta = 0.5
+            ro_dp_des = 0
+        else:
+            # ISO 5167 Simplification for permanent pressure loss
+            ro_beta = ro_d / ro_D
+            C_d = 0.61  # Typical discharge coefficient
+            A_0 = math.pi * (ro_d**2) / 4.0
+            Q_s = ro_q_des / 3600.0  # m³/s
+            
+            # Differential Pressure (Pa) across the orifice
+            dp_pa = (Q_s**2 * hy_rho * (1 - ro_beta**4)) / (2 * (C_d**2) * (A_0**2))
+            
+            # Permanent Pressure Loss (Pa)
+            ppl_pa = dp_pa * (1 - ro_beta**1.9)
+            
+            # Convert to bar
+            ro_dp_des = ppl_pa / 100000.0
+            
+            st.markdown(f"**{S['ro_beta'].format(beta=ro_beta)}**")
+            st.markdown(f"**{S['ro_dp_calc'].format(dp=ro_dp_des)}**")
+            
+            sg = hy_rho / 1000.0
+            kv_ro_active = ro_q_des / math.sqrt(ro_dp_des / sg) if ro_dp_des > 0 else None
+            if kv_ro_active:
+                st.success(S["ro_kv_res"].format(kv=kv_ro_active))
 
     st.subheader(S["pump_curve_hdr"])
     st.caption(S["pump_curve_help"])
@@ -1019,10 +1036,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         show_dp = not hide_dp_lines
 
     # Slider interativo posicionado imediatamente acima do gráfico
-    if n_ctrl > 0:
-        user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
-    else:
-        user_op = 100
+    user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
 
     from scipy.interpolate import CubicSpline
     from scipy.optimize import brentq
@@ -1030,14 +1044,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     Qr = np.linspace(0, hy_qmax, 400)
     
-    # ── Determinar Ponto 1 e Ponto 3 a partir da entrada da primeira válvula ──
-    if n_ctrl > 0 and len(fcv_curve_data) > 0:
-        _ops_primeira, _, _ = fcv_curve_data[0]
-        op_ref1 = float(_ops_primeira[0])
-        op_ref3 = float(_ops_primeira[-1])
-    else:
-        op_ref1 = 20.0
-        op_ref3 = 100.0
+    # ── Determinar Ponto 1 e Ponto 3 a partir da entrada da válvula ──
+    _ops_primeira, _, _ = fcv_curve_data[0]
+    op_ref1 = float(_ops_primeira[0])
+    op_ref3 = float(_ops_primeira[-1])
 
     lbl_ref1 = f"{op_ref1:g}%"
     lbl_ref3 = f"{op_ref3:g}%"
@@ -1253,6 +1263,9 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
             'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref, 'show_dp': show_dp,
             'ro_active': ro_active,
+            'ro_D': ro_D if ro_active else None,
+            'ro_d': ro_d if ro_active else None,
+            'ro_beta': ro_beta if ro_active else None,
             'ro_q_des': ro_q_des if ro_active else None,
             'ro_dp_des': ro_dp_des if ro_active else None,
             'kv_ro': kv_ro_active
@@ -1480,15 +1493,16 @@ Para $Re<2300$: $f=64/Re$.
 
 $$\Delta P = \left(\frac{Q}{K_{v,ef}}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0{,}865$$
 
-Múltiplas válvulas de controle em **série** somam suas perdas de pressão diretamente.
+### 3.4 Placa de Orifício (RO) — Perda Permanente (ISO 5167)
 
-### 3.4 Curva da Bomba e Leis de Semelhança
+A perda de carga calculada é a Perda de Pressão Permanente (PPL) da placa de orifício, que afeta a curva da bomba, e não o $\Delta P$ imediato medido nas tomadas:
+$$PPL = \Delta P_{medido} \times (1 - \beta^{1{,}9})$$
+
+### 3.5 Curva da Bomba e Leis de Semelhança
 
 O usuário insere 5 pontos Q×H na rotação nominal. Para outras frequências de inversor, aplica-se:
 
 $$Q_2 = Q_1 \cdot \frac{n_2}{n_1}, \quad H_2 = H_1 \cdot \left(\frac{n_2}{n_1}\right)^2, \quad \frac{n_2}{n_1} = \frac{f_2}{f_1}$$
-
-O ponto de operação é a interseção da curva da bomba com a curva do sistema. Três curvas do sistema são plotadas: abertura 20%, 100% e abertura definida pelo usuário.
 
 ---
 
@@ -1496,8 +1510,8 @@ O ponto de operação é a interseção da curva da bomba com a curva do sistema
 
 - Incropera et al. — *Fundamentals of Heat and Mass Transfer*, 7ª ed.
 - ISO 4006 / ABNT NBR 12213 — Darcy-Weisbach
+- ISO 5167 — Measurement of fluid flow by means of pressure differential devices
 - IEC 60534 — Coeficiente Kv
-- API MPMS Chapter 4 — Calibração de medidores de óleo
 
 ---
 *Validar com cálculos detalhados antes da especificação final.*
@@ -1589,15 +1603,16 @@ For $Re<2300$: $f=64/Re$.
 
 $$\Delta P = \left(\frac{Q}{K_{v,eff}}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0.865$$
 
-Multiple control valves in **series** sum their pressure drops directly.
+### 3.4 Restriction Orifice (RO) — Permanent Loss (ISO 5167)
 
-### 3.4 Pump Curve and Affinity Laws
+The calculated pressure drop is the Permanent Pressure Loss (PPL) of the orifice plate, which actually acts against the pump, not the immediate measured $\Delta P$ across the taps:
+$$PPL = \Delta P_{measured} \times (1 - \beta^{1.9})$$
+
+### 3.5 Pump Curve and Affinity Laws
 
 The user enters 5 Q×H points at nominal speed. For other VFD frequencies:
 
 $$Q_2 = Q_1 \cdot \frac{n_2}{n_1}, \quad H_2 = H_1 \cdot \left(\frac{n_2}{n_1}\right)^2, \quad \frac{n_2}{n_1} = \frac{f_2}{f_1}$$
-
-The operating point is the intersection of the pump curve and the system curve. Three system curves are plotted: 20% opening, 100% opening, and user-defined opening.
 
 ---
 
@@ -1605,8 +1620,8 @@ The operating point is the intersection of the pump curve and the system curve. 
 
 - Incropera et al. — *Fundamentals of Heat and Mass Transfer*, 7th ed.
 - ISO 4006 / ABNT NBR 12213 — Darcy-Weisbach
+- ISO 5167 — Measurement of fluid flow by means of pressure differential devices
 - IEC 60534 — Kv flow coefficient
-- API MPMS Chapter 4 — Oil meter calibration
 
 ---
 *Always validate with detailed engineering calculations before final specification.*
