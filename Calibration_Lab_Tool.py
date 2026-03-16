@@ -11,6 +11,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import io
 import math
+import json
+import os
 from datetime import datetime
 
 st.set_page_config(
@@ -19,6 +21,38 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SAVE / LOAD CONFIGURATIONS LOGIC
+# ─────────────────────────────────────────────────────────────────────────────
+CONFIG_FILE = "lab_configs.json"
+
+def get_saved_configs():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_config(name):
+    configs = get_saved_configs()
+    data_to_save = {}
+    for k, v in st.session_state.items():
+        # Avoid saving internal dataframes, plot data, or buttons states
+        if k not in ["th_data", "hy_data", "hy_sim_active"] and not k.endswith("btn"):
+            if isinstance(v, (int, float, str, bool, list, dict)):
+                data_to_save[k] = v
+    configs[name] = data_to_save
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(configs, f, indent=4)
+
+def load_config(name):
+    configs = get_saved_configs()
+    if name in configs:
+        for k, v in configs[name].items():
+            st.session_state[k] = v
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRANSLATIONS
@@ -140,37 +174,8 @@ TR = {
         "kv_dP": "ΔP máx (bar):",
         "kv_rho": "ρ (kg/m³):",
         "kv_res": "**Kv mínimo: {kv:.0f} m³/h·bar⁰·⁵**",
-        "m_H800h": "H total @ 800 m³/h (quente)",
-        "m_H800c": "H total @ 800 m³/h (frio)",
-        "m_V800": "Velocidade @ 800 m³/h",
-        "cold_warn": "⚠️ **Partida a Frio:** Re = {re:.0f} a 800 m³/h com µ fria ({mu:.0f} cP) — escoamento **{reg}**. Verifique potência do motor e torque de partida do inversor.",
-        "lam": "laminar", "trans": "transição",
-        "tr_hot": "H Total – Quente (nominal)",
-        "tr_cold": "H Total – Frio (partida)",
-        "tr_dist": "Perda Distribuída – Quente",
-        "tr_loc": "Perda Localizada (K)",
-        "tr_cv": "Perda Válvula Controle (Kv)",
         "hy_title": "Curva do Sistema – Altura Manométrica vs Vazão",
         "hy_px": "Vazão (m³/h)", "hy_py": "Altura Manométrica (m)",
-        "hy_tbl": "Tabela de Perdas em Pontos-Chave",
-        "cQ":"Vazão (m³/h)","cHd":"H Distribuída (m)","cHl":"H Localizada (m)",
-        "cHe":"H Estática (m)","cHc":"H Controle (m)","cHt":"H TOTAL (m)","cdP":"ΔP (bar)",
-        "bm_hdr": "📋 Lista de Materiais (BOM)",
-        "bm_info": "Preencha os parâmetros para gerar a BOM.",
-        "bm_tv": "Volume do tanque (m³):",
-        "bm_DN": "Diâmetro nominal da tubulação (mm):",
-        "bm_L": "Comprimento total de tubulação (m):",
-        "bm_c90":"Qtd. curvas 90°:","bm_c45":"Qtd. curvas 45°:","bm_tee":"Qtd. tês:",
-        "bm_ve":"Qtd. válvulas esfera:","bm_vb":"Qtd. válvulas borboleta:",
-        "bm_vc":"Qtd. válvulas de controle:","bm_pt":"Qtd. transmissores de pressão (PT):",
-        "bm_tt":"Qtd. transmissores de temperatura (TT):","bm_ftm":"Qtd. Master Meters:",
-        "bm_ftc":"Qtd. medidores em calibração:",
-        "bm_pump": "Dados da Bomba (para seleção)",
-        "bm_H":"Altura manométrica (m):","bm_Q":"Vazão nominal (m³/h):",
-        "bm_P":"Potência estimada (kW):","bm_ef":"Eficiência estimada (%):",
-        "bm_btn":"📋 Gerar BOM","bm_exp":"⬇️ Exportar BOM como CSV",
-        "bm_ok":"✅ BOM gerada! Clique em 'Exportar BOM como CSV' para baixar.",
-        "ct":"Tag","cd":"Descrição","cq":"Quantidade","cu":"Unidade","cs":"Especificação",
         "seg_hdr": "Segmentos de Tubulação",
         "seg_note": "ℹ️ Cada segmento representa um trecho com diâmetro diferente. Vazão Q é conservada em série — apenas a velocidade muda. Rugosidade e desnível são globais (barra lateral).",
         "seg_add": "➕ Adicionar segmento",
@@ -184,6 +189,15 @@ TR = {
         "seg_dred":"D montante (m)",
         "seg_lbl": "Segmento",
         "seg_sum": "Σ comprimentos: {L:.1f} m | {n} segmento(s)",
+        "cfg_hdr": "💾 Configurações",
+        "cfg_save": "Salvar Atual",
+        "cfg_load": "Carregar Salva",
+        "cfg_name": "Nome da configuração:",
+        "cfg_sel": "Selecione para carregar:",
+        "cfg_succ": "Configuração salva com sucesso!",
+        "cfg_lsucc": "Configuração carregada com sucesso!",
+        "cfg_empty": "Nenhuma configuração salva.",
+        "hide_ref": "👁️ Ocultar curvas de referência (20% e 100%)",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -300,37 +314,8 @@ TR = {
         "kv_dP": "Max ΔP (bar):",
         "kv_rho": "ρ (kg/m³):",
         "kv_res": "**Minimum Kv: {kv:.0f} m³/h·bar⁰·⁵**",
-        "m_H800h": "Total H @ 800 m³/h (hot)",
-        "m_H800c": "Total H @ 800 m³/h (cold)",
-        "m_V800": "Velocity @ 800 m³/h",
-        "cold_warn": "⚠️ **Cold Start:** Re = {re:.0f} at 800 m³/h with cold µ ({mu:.0f} cP) — **{reg}** flow. Check motor power and VFD starting torque.",
-        "lam": "laminar", "trans": "transitional",
-        "tr_hot": "Total H – Hot (nominal)",
-        "tr_cold": "Total H – Cold (start-up)",
-        "tr_dist": "Distributed Loss – Hot",
-        "tr_loc": "Localized Loss (K)",
-        "tr_cv": "Control Valve Loss (Kv)",
         "hy_title": "System Curve – Head vs Flow Rate",
         "hy_px": "Flow Rate (m³/h)", "hy_py": "Head (m)",
-        "hy_tbl": "Head Loss at Key Flow Points",
-        "cQ":"Flow (m³/h)","cHd":"Distributed H (m)","cHl":"Localized H (m)",
-        "cHe":"Static H (m)","cHc":"Ctrl Valve H (m)","cHt":"TOTAL H (m)","cdP":"ΔP (bar)",
-        "bm_hdr": "📋 Bill of Materials (BOM)",
-        "bm_info": "Fill in the parameters to generate the BOM.",
-        "bm_tv": "Tank volume (m³):",
-        "bm_DN": "Nominal pipe diameter (mm):",
-        "bm_L": "Total piping length (m):",
-        "bm_c90":"No. of 90° elbows:","bm_c45":"No. of 45° elbows:","bm_tee":"No. of tees:",
-        "bm_ve":"No. of ball valves:","bm_vb":"No. of butterfly valves:",
-        "bm_vc":"No. of control valves:","bm_pt":"No. of pressure transmitters (PT):",
-        "bm_tt":"No. of temperature transmitters (TT):","bm_ftm":"No. of Master Meters:",
-        "bm_ftc":"No. of meters under calibration:",
-        "bm_pump": "Pump Data (for selection)",
-        "bm_H":"Calculated head (m):","bm_Q":"Nominal flow rate (m³/h):",
-        "bm_P":"Estimated power (kW):","bm_ef":"Estimated efficiency (%):",
-        "bm_btn":"📋 Generate BOM","bm_exp":"⬇️ Export BOM as CSV",
-        "bm_ok":"✅ BOM generated! Click 'Export BOM as CSV' to download.",
-        "ct":"Tag","cd":"Description","cq":"Quantity","cu":"Unit","cs":"Specification",
         "seg_hdr": "Piping Segments",
         "seg_note": "ℹ️ Each segment represents a pipe section with a different diameter. Flow Q is conserved in series — only velocity changes. Roughness and static head are global (sidebar).",
         "seg_add": "➕ Add segment",
@@ -344,6 +329,15 @@ TR = {
         "seg_dred":"Upstream D (m)",
         "seg_lbl": "Segment",
         "seg_sum": "Σ lengths: {L:.1f} m | {n} segment(s)",
+        "cfg_hdr": "💾 Configurations",
+        "cfg_save": "Save Current",
+        "cfg_load": "Load Saved",
+        "cfg_name": "Configuration name:",
+        "cfg_sel": "Select to load:",
+        "cfg_succ": "Saved successfully!",
+        "cfg_lsucc": "Loaded successfully!",
+        "cfg_empty": "No saved configs.",
+        "hide_ref": "👁️ Hide reference curves (20% and 100%)",
     },
 }
 
@@ -503,7 +497,6 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    import matplotlib.ticker as ticker
 
     PLT_STYLE = {'figure.facecolor': 'white', 'axes.facecolor': 'white',
                  'axes.grid': True, 'grid.alpha': 0.35, 'axes.spines.top': False,
@@ -541,13 +534,15 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         plt.rcParams.update(PLT_STYLE)
         fig_m, ax = plt.subplots(figsize=(9, 4.8))
         Qr = d['Qr']
-        ax.plot(Qr, d['H_sys20'],  color='steelblue', lw=2, label='Sistema 20%' if PT else 'System 20%')
-        ax.plot(Qr, d['H_sys100'], color='royalblue', lw=2, label='Sistema 100%' if PT else 'System 100%')
-        
         ax.plot(Qr, d.get('H_sys_base', []), color='gray', lw=1.5, ls='--', label='Base Pipe')
         
+        # Only plot reference curves if they were rendered in the interactive UI
+        if d.get('show_ref', True):
+            ax.plot(Qr, d['H_sys20'],  color='steelblue', lw=2, label='Sistema 20%' if PT else 'System 20%')
+            ax.plot(Qr, d['H_sys100'], color='royalblue', lw=2, label='Sistema 100%' if PT else 'System 100%')
+        
         uop = d['user_op']
-        if uop not in (20, 100):
+        if uop not in (20, 100) or not d.get('show_ref', True):
             ax.plot(Qr, d['H_sys_usr'], color='cornflowerblue', lw=1.5, ls=':', label=f"Sistema {uop}%" if PT else f"System {uop}%")
         
         ax.plot(d['Qmin'], d['Hmin'], color='#FFB300', lw=2, label=f"Bomba {d['pc_fmin']:.0f}Hz" if PT else f"Pump {d['pc_fmin']:.0f}Hz")
@@ -558,7 +553,11 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         op_colors = {'20%': '#e67e00', f"{uop}%": '#8B008B', '100%': '#006400'}
         for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fnom', d['ops_fnom_pts']), ('fmax', d['ops_fmax_pts'])]:
             sym = {'fmin': 'v', 'fnom': 'o', 'fmax': '^'}[freq_key]
-            for lbl, (q_op, h_op) in [('20%', ops_t[0]), (f"{uop}%", ops_t[1]), ('100%', ops_t[2])]:
+            items = [(f"{uop}%", ops_t[1])]
+            if d.get('show_ref', True):
+                items = [('20%', ops_t[0])] + items + [('100%', ops_t[2])]
+                
+            for lbl, (q_op, h_op) in items:
                 if q_op is not None:
                     col = op_colors.get(lbl, 'black')
                     ax.plot(q_op, h_op, marker=sym, ms=8, color=col, zorder=5)
@@ -704,12 +703,12 @@ with st.sidebar:
     st.header(S["sidebar_header"])
     st.subheader(S["fluid_sub"])
 
-    use_manual = st.checkbox(S["manual_cb"], value=False)
+    use_manual = st.checkbox(S["manual_cb"], value=False, key="use_manual")
     if use_manual:
-        rho      = st.number_input(S["density"], min_value=100.0, value=850.0)
-        cp_fluid = st.number_input(S["cp"],      min_value=0.1,   value=2000.0)
-        k_fluid  = st.number_input(S["k_lbl"],   min_value=0.01,  value=0.12)
-        _mu      = st.number_input(S["mu_lbl"],  min_value=0.001, value=0.025)
+        rho      = st.number_input(S["density"], min_value=100.0, value=850.0, key="rho_man")
+        cp_fluid = st.number_input(S["cp"],      min_value=0.1,   value=2000.0, key="cp_man")
+        k_fluid  = st.number_input(S["k_lbl"],   min_value=0.01,  value=0.12, key="k_man")
+        _mu      = st.number_input(S["mu_lbl"],  min_value=0.001, value=0.025, key="mu_man")
         viscosity_model = lambda Tf, m=_mu: m
         fluid_choice = "Manual"
     else:
@@ -719,7 +718,7 @@ with st.sidebar:
             "KRD MAX 685 (68.2 - 115.6 cP)",
             "KRD MAX 55 (2.4 - 4.64 cP)",
         ]
-        fluid_choice = st.selectbox(S["sel_fluid"], FLUIDS)
+        fluid_choice = st.selectbox(S["sel_fluid"], FLUIDS, key="fluid_choice")
         rho = 850.0; cp_fluid = 2000.0; k_fluid = 0.12
         _vm = {
             FLUIDS[0]: lambda Tf: 0.1651  * np.exp(-0.046 * Tf),
@@ -730,14 +729,13 @@ with st.sidebar:
         viscosity_model = _vm[fluid_choice]
 
     st.subheader(S["pipe_sub"])
-    d_inner  = st.number_input(S["d_in"],    min_value=0.01, value=0.2571)
-    D_outer  = st.number_input(S["d_out"],   min_value=0.01, value=0.3238)
-    L_pipe   = st.number_input(S["L_p"],     min_value=1.0,  value=40.0)
-    rug_mm   = st.number_input(S["hy_rug"],  min_value=0.001, value=0.046, help=S["hy_rug_h"])
-    dz_glob  = st.number_input(S["hy_dz"],   value=2.0)
-    eps_emit = st.number_input(S["eps_lbl"], min_value=0.01, max_value=1.0,
-                               value=0.85, help=S["eps_help"])
-    h_ext    = st.number_input(S["hout_lbl"], min_value=1.0, value=10.0, help=S["hout_help"])
+    d_inner  = st.number_input(S["d_in"],    min_value=0.01, value=0.2571, key="d_inner")
+    D_outer  = st.number_input(S["d_out"],   min_value=0.01, value=0.3238, key="D_outer")
+    L_pipe   = st.number_input(S["L_p"],     min_value=1.0,  value=40.0, key="L_pipe")
+    rug_mm   = st.number_input(S["hy_rug"],  min_value=0.001, value=0.046, help=S["hy_rug_h"], key="rug_mm")
+    dz_glob  = st.number_input(S["hy_dz"],   value=2.0, key="dz_glob")
+    eps_emit = st.number_input(S["eps_lbl"], min_value=0.01, max_value=1.0, value=0.85, help=S["eps_help"], key="eps_emit")
+    h_ext    = st.number_input(S["hout_lbl"], min_value=1.0, value=10.0, help=S["hout_help"], key="h_ext")
 
     st.divider()
     st.subheader("📄 " + ("Exportar Relatório" if lang=="pt" else "Export Report"))
@@ -770,6 +768,29 @@ with st.sidebar:
         st.caption("⚠️ " + ("Execute ao menos uma simulação para habilitar o relatório."
                              if lang=="pt" else
                              "Run at least one simulation to enable the report."))
+
+    # ── SAVE/LOAD WIDGETS ──
+    st.divider()
+    st.subheader(S["cfg_hdr"])
+    cfg_names = list(get_saved_configs().keys())
+
+    with st.expander(S["cfg_save"]):
+        new_name = st.text_input(S["cfg_name"], key="new_cfg_name")
+        if st.button(S["cfg_save"], key="save_cfg_btn"):
+            if new_name:
+                save_config(new_name)
+                st.success(S["cfg_succ"])
+                st.rerun()
+
+    with st.expander(S["cfg_load"]):
+        if cfg_names:
+            sel_cfg = st.selectbox(S["cfg_sel"], cfg_names, key="sel_cfg_name")
+            if st.button(S["cfg_load"], key="load_cfg_btn"):
+                load_config(sel_cfg)
+                st.success(S["cfg_lsucc"])
+                st.rerun()
+        else:
+            st.info(S["cfg_empty"])
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HEADER
@@ -849,8 +870,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         kv_r_  = kk3.number_input(S["kv_rho"], value=850.0, key="kvrho")
         st.success(S["kv_res"].format(kv=kv_Q_/math.sqrt(kv_dP_*kv_r_/1000)))
 
-    n_ctrl = st.number_input(S["n_ctrl_lbl"], min_value=0, value=1, step=1, help=S["n_ctrl_help"])
-    st.info(S["ctrl_series_note"])
+    n_ctrl = st.number_input(S["n_ctrl_lbl"], min_value=0, value=1, step=1, help=S["n_ctrl_help"], key="n_ctrl")
 
     fcv_curve_data = []
 
@@ -882,19 +902,19 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     st.subheader(S["fl_hy"])
     fc1, fc2, fc3 = st.columns(3)
-    hy_rho    = fc1.number_input(S["hy_rho"],  min_value=100.0, value=850.0)
-    hy_mu_cP  = fc2.number_input(S["hy_mu_h"], min_value=0.01, value=25.0, help=S["hy_mu_h_h"])
+    hy_rho    = fc1.number_input(S["hy_rho"],  min_value=100.0, value=850.0, key="hy_rho")
+    hy_mu_cP  = fc2.number_input(S["hy_mu_h"], min_value=0.01, value=25.0, help=S["hy_mu_h_h"], key="hy_mu_cP")
     hy_mu_hot = hy_mu_cP / 1000.0
-    hy_qmax   = fc3.number_input(S["hy_qmax"], min_value=50.0, value=900.0, help=S["hy_qmax_h"])
+    hy_qmax   = fc3.number_input(S["hy_qmax"], min_value=50.0, value=900.0, help=S["hy_qmax_h"], key="hy_qmax")
 
     st.subheader(S["pump_curve_hdr"])
     st.caption(S["pump_curve_help"])
 
     pc1, pc2, pc3 = st.columns(3)
-    pc_poles = pc1.selectbox(S["pc_poles"], [2, 4, 6, 8], index=1, help=S["pc_poles_help"])
-    pc_freq0 = pc2.number_input(S["pc_freq"], min_value=10.0, value=60.0, help=S["pc_freq_help"])
-    pc_fmin  = pc3.number_input(S["pc_fmin"], min_value=5.0,  value=20.0)
-    pc_fmax  = pc3.number_input(S["pc_fmax"], min_value=10.0, value=60.0)
+    pc_poles = pc1.selectbox(S["pc_poles"], [2, 4, 6, 8], index=1, help=S["pc_poles_help"], key="pc_poles")
+    pc_freq0 = pc2.number_input(S["pc_freq"], min_value=10.0, value=60.0, help=S["pc_freq_help"], key="pc_freq0")
+    pc_fmin  = pc3.number_input(S["pc_fmin"], min_value=5.0,  value=20.0, key="pc_fmin")
+    pc_fmax  = pc3.number_input(S["pc_fmax"], min_value=10.0, value=60.0, key="pc_fmax")
 
     default_pts = [(0, 45), (200, 42), (400, 35), (600, 22), (800, 5)]
     pump_pts = []
@@ -912,6 +932,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     st.markdown("---")
     st.subheader(S["sim_hdr"])
     
+    # Hide Reference Curves Toggle
+    hide_ref_curves = st.checkbox(S["hide_ref"], value=False, key="hide_ref_curves")
+    show_ref = not hide_ref_curves
+
     # Slider interativo posicionado imediatamente acima do gráfico
     if n_ctrl > 0:
         user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
@@ -999,14 +1023,17 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     fh.add_trace(go.Scatter(x=Qr, y=H_sys_base, mode='lines',
         name=S["sys_base"], line=dict(color='gray', width=2, dash='dash')))
 
-    fh.add_trace(go.Scatter(x=Qr, y=H_sys20, mode='lines',
-        name=S["sys20"], line=dict(color='steelblue', width=2.5)))
-    fh.add_trace(go.Scatter(x=Qr, y=H_sys100, mode='lines',
-        name=S["sys100"], line=dict(color='royalblue', width=2.5)))
-    if user_op not in (20, 100):
+    if show_ref:
+        fh.add_trace(go.Scatter(x=Qr, y=H_sys20, mode='lines',
+            name=S["sys20"], line=dict(color='steelblue', width=2.5)))
+        fh.add_trace(go.Scatter(x=Qr, y=H_sys100, mode='lines',
+            name=S["sys100"], line=dict(color='royalblue', width=2.5)))
+    
+    # Always plot the user curve unless it perfectly overlaps with 20/100 and references are shown
+    if user_op not in (20, 100) or not show_ref:
         fh.add_trace(go.Scatter(x=Qr, y=H_sys_usr, mode='lines',
             name=S["sys_user"] + f" ({user_op}%)",
-            line=dict(color='cornflowerblue', width=2, dash='dot')))
+            line=dict(color='cornflowerblue', width=2.5 if not show_ref else 2, dash='solid' if not show_ref else 'dot')))
 
     fh.add_trace(go.Scatter(x=Qmin, y=Hmin, mode='lines',
         name=S["pump_fmin"].format(f=pc_fmin), line=dict(color='#FFB300', width=2.5)))
@@ -1028,9 +1055,15 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
         sym, freq_val = op_speed_symbols[speed_key]
-        for valve_lbl, (q_op, h_op) in [('20%', ops_tuple[0]), (f'{user_op}%', ops_tuple[1]), ('100%', ops_tuple[2])]:
+        
+        # Filter points to plot based on the toggle
+        items_to_plot = [(f'{user_op}%', ops_tuple[1])]
+        if show_ref:
+            items_to_plot = [('20%', ops_tuple[0])] + items_to_plot + [('100%', ops_tuple[2])]
+            
+        for valve_lbl, (q_op, h_op) in items_to_plot:
             if q_op is not None:
-                col = op_valve_colors[valve_lbl]
+                col = op_valve_colors.get(valve_lbl, 'black')
                 fh.add_trace(go.Scatter(
                     x=[q_op], y=[h_op], mode='markers+text',
                     marker=dict(color=col, size=13, symbol=sym, line=dict(color='white', width=1.5)),
@@ -1038,8 +1071,13 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                     textfont=dict(color=col, size=11), textposition='middle right', showlegend=False
                 ))
 
+    # Calculate and draw dP Annotations only for visible nominal points
     cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
-    for valve_lbl, (q_op, h_op) in [('20%', op20), (f'{user_op}%', op_usr), ('100%', op100)]:
+    items_to_annotate = [(f'{user_op}%', op_usr)]
+    if show_ref:
+        items_to_annotate = [('20%', op20)] + items_to_annotate + [('100%', op100)]
+        
+    for valve_lbl, (q_op, h_op) in items_to_annotate:
         if q_op is not None:
             h_base_op = float(cs_sys_base(q_op))
             dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0
@@ -1076,7 +1114,13 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         def make_op_df(ops_tuple):
             o20_, ousr_, o100_ = ops_tuple
             rows_ = []
-            for lbl, (q_op, h_op) in [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]:
+            
+            # Filter rows based on the toggle
+            items = [(f"{user_op}%", ousr_)]
+            if show_ref:
+                items = [("20%", o20_)] + items + [("100%", o100_)]
+                
+            for lbl, (q_op, h_op) in items:
                 rows_.append({
                     S["op_lbl"]: lbl, S["op_Q"]: f"{q_op:.1f} m³/h" if q_op is not None else "—",
                     S["op_H"]: f"{h_op:.1f} m" if h_op is not None else "—",
@@ -1106,7 +1150,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'user_op': user_op, 'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
             'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
-            'rug_mm': rug_mm, 'dz_glob': dz_glob,
+            'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref
         }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1114,10 +1158,10 @@ with tab_th:
     st.header(S["th_header"])
     st.subheader(S["sys_data"])
     s1, s2, s3, s4 = st.columns(4)
-    vol_m3     = s1.number_input(S["vol"],     min_value=0.1, value=10.0)
-    T_amb      = s2.number_input(S["tamb"],    value=25.0)
-    mu_nom_cP  = s3.number_input(S["mu_nom"], value=25.0, min_value=0.01)
-    t_sim_h    = s4.number_input(S["tsim"],    min_value=0.1, value=10.0)
+    vol_m3     = s1.number_input(S["vol"],     min_value=0.1, value=10.0, key="vol_m3")
+    T_amb      = s2.number_input(S["tamb"],    value=25.0, key="T_amb")
+    mu_nom_cP  = s3.number_input(S["mu_nom"], value=25.0, min_value=0.01, key="mu_nom_cP_th")
+    t_sim_h    = s4.number_input(S["tsim"],    min_value=0.1, value=10.0, key="t_sim_h")
 
     st.divider()
     ph1, ph2 = st.columns(2)
@@ -1136,7 +1180,7 @@ with tab_th:
 
     st.divider()
 
-    if st.button(S["run"], type="primary"):
+    if st.button(S["run"], type="primary", key="btn_run_thermal"):
         mu_110_pa = mu_nom_cP * 1.1 / 1000.0
         mu_90_pa  = mu_nom_cP * 0.9 / 1000.0
         T110 = solve_visc_temp(viscosity_model, mu_110_pa)
