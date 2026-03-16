@@ -210,6 +210,12 @@ TR = {
         "cfg_empty": "Nenhuma configuração salva.",
         "hide_ref": "👁️ Ocultar curvas de referência (Pontos 1 e 3)",
         "hide_dp": "👁️ Ocultar valores e linhas de ΔP",
+        "ro_hdr": "🕳️ Orifício de Restrição (RO)",
+        "ro_help": "O RO adiciona uma restrição permanente à tubulação (curva Base Pipe). Sua perda de carga varia com o quadrado da vazão.",
+        "ro_enable": "Habilitar RO a jusante",
+        "ro_q_des": "Vazão de projeto do RO (m³/h):",
+        "ro_dp_des": "ΔP de projeto do RO (bar):",
+        "ro_kv_res": "Kv fixo calculado para o RO: {kv:.1f} m³/h·bar⁰·⁵",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -349,6 +355,12 @@ TR = {
         "cfg_empty": "No saved configs.",
         "hide_ref": "👁️ Hide reference curves (Points 1 and 3)",
         "hide_dp": "👁️ Hide ΔP values and lines",
+        "ro_hdr": "🕳️ Restriction Orifice (RO)",
+        "ro_help": "The RO adds a permanent restriction to the piping (Base Pipe curve). Its pressure drop varies with the square of the flow rate.",
+        "ro_enable": "Enable downstream RO",
+        "ro_q_des": "RO design flow rate (m³/h):",
+        "ro_dp_des": "RO design ΔP (bar):",
+        "ro_kv_res": "Fixed calculated RO Kv: {kv:.1f} m³/h·bar⁰·⁵",
     },
 }
 
@@ -409,7 +421,7 @@ def colebrook(Re, er):
     alpha = (Re - 2300) / (4000 - 2300)
     return f_lam_2300 + alpha * (f_turb_4000 - f_lam_2300)
 
-def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm):
+def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=None):
     if Q <= 0:
         return 0, 0, 0, dz, 0
 
@@ -434,6 +446,12 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm):
         K_seg = (seg['c90'] * 0.3 + seg['tee'] * 0.5 +
                  seg['ve']  * 0.1 + K_red)
         Hl_total += K_seg * V**2 / (2 * 9.81)
+
+    # Restriction Orifice permanent loss
+    if kv_ro and kv_ro > 0:
+        # Conversion: dP(bar) to Head(m) = dP * 100000 / (rho * g)
+        H_ro = (Q / kv_ro)**2 * (100.0 / 9.81)
+        Hl_total += H_ro
 
     Hc = 0.0
     Kv_eq = 0.0
@@ -649,9 +667,21 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
             [("Vazão máxima" if PT else "Max flow rate"), f"{hy_data['hy_qmax']:.0f} m³/h", ("Frequência nominal" if PT else "Nominal frequency"), f"{hy_data['pc_freq0']:.0f} Hz"],
             [("Freq. mínima inversor" if PT else "VFD min freq."), f"{hy_data['pc_fmin']:.0f} Hz", ("Rugosidade global" if PT else "Global roughness"), f"{hy_data.get('rug_mm', 0.046):.3f} mm"],
         ]
+        
+        if hy_data.get('ro_active'):
+            hy_inp.append([
+                ("RO Habilitado" if PT else "RO Enabled"), ("Sim" if PT else "Yes"), 
+                ("Kv Orifício" if PT else "Orifice Kv"), f"{hy_data.get('kv_ro', 0):.1f}"
+            ])
+            hy_inp.append([
+                ("RO Vazão Projeto" if PT else "RO Design Flow"), f"{hy_data.get('ro_q_des', 0):.0f} m³/h",
+                ("RO ΔP Projeto" if PT else "RO Design ΔP"), f"{hy_data.get('ro_dp_des', 0):.1f} bar"
+            ])
+            
         th2 = Table(hy_inp, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
         th2.setStyle(tbl_noheader())
         story.append(th2)
+        
         story.append(Paragraph("2.2 " + ("Curva do Sistema e Pontos de Operação" if PT else "System Curve & Operating Points"), style_h2))
         story.append(make_hydraulic_chart(hy_data))
         story.append(Paragraph("2.3 " + ("Pontos de Operação — Rotação Variável" if PT else "Operating Points — Variable Speed"), style_h2))
@@ -927,7 +957,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         sort_i = _np.argsort(_ops)
         _ops, _kvs = _ops[sort_i], _kvs[sort_i]
         
-        _kvs_safe = _np.where(_kvs <= 0, 1e-5, _kvs) # Previne log(0) se usuário inserir 0
+        _kvs_safe = _np.where(_kvs <= 0, 1e-5, _kvs)
         _log_kv = _np.log(_kvs_safe)
         
         _interp = _interp1d(_ops, _log_kv, kind='linear', fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
@@ -939,6 +969,21 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     hy_mu_cP  = fc2.number_input(S["hy_mu_h"], min_value=0.01, value=25.0, help=S["hy_mu_h_h"], key="hy_mu_cP")
     hy_mu_hot = hy_mu_cP / 1000.0
     hy_qmax   = fc3.number_input(S["hy_qmax"], min_value=50.0, value=900.0, help=S["hy_qmax_h"], key="hy_qmax")
+
+    st.subheader(S["ro_hdr"])
+    st.info(S["ro_help"])
+    ro_active = st.checkbox(S["ro_enable"], value=False, key="ro_active")
+    kv_ro_active = None
+
+    if ro_active:
+        rc1, rc2 = st.columns(2)
+        ro_q_des = rc1.number_input(S["ro_q_des"], value=834.0, key="ro_q_des")
+        ro_dp_des = rc2.number_input(S["ro_dp_des"], value=2.5, min_value=0.01, key="ro_dp_des")
+        
+        # Calculate plate Kv dynamically based on design parameters and fluid density
+        sg = hy_rho / 1000.0
+        kv_ro_active = ro_q_des / math.sqrt(ro_dp_des / sg)
+        st.success(S["ro_kv_res"].format(kv=kv_ro_active))
 
     st.subheader(S["pump_curve_hdr"])
     st.caption(S["pump_curve_help"])
@@ -998,11 +1043,11 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     lbl_ref3 = f"{op_ref3:g}%"
     lbl_usr  = f"{user_op:g}%"
 
-    # ── System curves at 3 valve openings + Base Pipe ─────────────────────
-    def sys_curve_base(Q_arr):
+    # ── System curves at 3 valve openings + Base Pipe + RO ─────────────────────
+    def sys_curve_base(Q_arr, ro_kv_val):
         H = []
         for Q in Q_arr:
-            h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm)
+            h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm, ro_kv_val)
             H.append(h)
         return _np2.array(H)
 
@@ -1014,18 +1059,18 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             cv_resolved.append((kv_resolved, 100)) # Kv já escalonado pela interpolação
         return cv_resolved
 
-    def sys_curve(Q_arr, op_pct):
+    def sys_curve(Q_arr, op_pct, ro_kv_val):
         cv_ov = resolve_ctrl_valves(op_pct)
         H = []
         for Q in Q_arr:
-            h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm)
+            h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm, ro_kv_val)
             H.append(h)
         return _np2.array(H)
 
-    H_sys_base = sys_curve_base(Qr)
-    H_sys_ref1 = sys_curve(Qr, op_ref1)
-    H_sys_ref3 = sys_curve(Qr, op_ref3)
-    H_sys_usr  = sys_curve(Qr, user_op)
+    H_sys_base = sys_curve_base(Qr, kv_ro_active)
+    H_sys_ref1 = sys_curve(Qr, op_ref1, kv_ro_active)
+    H_sys_ref3 = sys_curve(Qr, op_ref3, kv_ro_active)
+    H_sys_usr  = sys_curve(Qr, user_op, kv_ro_active)
 
     # ── Pump curves via affinity laws ──────────────────────────────────────
     Qp = np.array([p[0] for p in pump_pts])
@@ -1206,7 +1251,11 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
             'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
-            'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref, 'show_dp': show_dp
+            'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref, 'show_dp': show_dp,
+            'ro_active': ro_active,
+            'ro_q_des': ro_q_des if ro_active else None,
+            'ro_dp_des': ro_dp_des if ro_active else None,
+            'kv_ro': kv_ro_active
         }
 
 # ─────────────────────────────────────────────────────────────────────────────
