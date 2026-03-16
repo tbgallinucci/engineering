@@ -111,7 +111,7 @@ TR = {
         "kv_lbl": "Kv da válvula de controle (m³/h·bar⁰·⁵) — IEC 60534:",
         "kv_help": "0 = sem válvula de controle.",
         "op_lbl": "Abertura da válvula (%)",
-        "op_help": "100% = totalmente aberta.",
+        "op_help": "Deslize para ver o gráfico atualizar em tempo real.",
         "fl_hy": "Fluido (para hidráulica)",
         "hy_rho": "Densidade (kg/m³):",
         "hy_mu_h": "Viscosidade nominal de processo (cP):",
@@ -135,10 +135,11 @@ TR = {
         "sys20": "Sistema — abertura 20%",
         "sys100": "Sistema — abertura 100%",
         "sys_user": "Sistema — abertura definida pelo usuário",
+        "sys_base": "Base Pipe (Sem Válvula)",
         "pump_nom": "Bomba — {f} Hz (nominal)",
         "pump_fmin": "Bomba — {f} Hz (mín. inversor)",
         "pump_fmax": "Bomba — {f} Hz (máx. inversor)",
-        "calc_btn": "📊 Calcular Curva do Sistema",
+        "calc_btn": "📊 Ativar Simulação Interativa",
         "kv_calc": "**Calculadora rápida de Kv:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "ΔP máx (bar):",
@@ -275,7 +276,7 @@ TR = {
         "kv_lbl": "Control valve Kv (m³/h·bar⁰·⁵) — IEC 60534:",
         "kv_help": "0 = no control valve.",
         "op_lbl": "Valve opening (%)",
-        "op_help": "100% = fully open.",
+        "op_help": "Slide to see the chart update in real-time.",
         "fl_hy": "Fluid (for hydraulics)",
         "hy_rho": "Density (kg/m³):",
         "hy_mu_h": "Nominal process viscosity (cP):",
@@ -299,10 +300,11 @@ TR = {
         "sys20": "System — 20% opening",
         "sys100": "System — 100% opening",
         "sys_user": "System — user-defined opening",
+        "sys_base": "Base Pipe (No Valve)",
         "pump_nom": "Pump — {f} Hz (nominal)",
         "pump_fmin": "Pump — {f} Hz (VFD min)",
         "pump_fmax": "Pump — {f} Hz (VFD max)",
-        "calc_btn": "📊 Calculate System Curve",
+        "calc_btn": "📊 Activate Interactive Simulation",
         "kv_calc": "**Quick Kv calculator:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "Max ΔP (bar):",
@@ -356,12 +358,10 @@ TR = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-
 # CONSTANTS & HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 SIGMA    = 5.670374419e-8
 K_STEEL  = 45.0
-
 
 def solve_visc_temp(visc_fn, mu_pa):
     from scipy.optimize import brentq
@@ -369,7 +369,6 @@ def solve_visc_temp(visc_fn, mu_pa):
         return brentq(lambda T: visc_fn(T) - mu_pa, 0, 250)
     except Exception:
         return None
-
 
 def solve_Ts(Tf, Tamb, R_int, R_ext, A_rad, eps, nit=15):
     """Newton-Raphson for outer surface temperature."""
@@ -384,14 +383,8 @@ def solve_Ts(Tf, Tamb, R_int, R_ext, A_rad, eps, nit=15):
             break
     return Ts
 
-
 def euler_step(Tf, Tamb, F_flow, W_pump,
                rho, cp, kf, d_in, D_out, L, eps, hext, m_tot):
-    """
-    Returns dT/dt for one Euler step.
-    F_flow [m³/s] affects Re → Nu → h_in → thermal resistance → heat loss.
-    W_pump [W] is held constant (user input).
-    """
     mu   = float(viscosity_model(Tf))
     Re   = (4 * F_flow * rho) / (math.pi * d_in * mu) if mu > 0 else 1e6
     Pr   = (mu * cp) / kf
@@ -406,16 +399,10 @@ def euler_step(Tf, Tamb, F_flow, W_pump,
     Qloss = (Tf - Ts) / Rint
     return (W_pump - Qloss) / (m_tot * cp)
 
-
 def colebrook(Re, er):
-    """
-    Fator de atrito de Darcy com interpolação linear na zona de transição (2300 < Re < 4000)
-    para evitar a descontinuidade numérica na troca entre Hagen-Poiseuille e Colebrook-White.
-    """
     Re = max(Re, 1)
     if Re <= 2300:
         return 64 / Re
-    # Colebrook-White turbulento
     f_turb = 0.25 / (math.log10(er/3.7 + 5.74/max(Re,1)**0.9))**2
     for _ in range(50):
         fn = (1/(-2*math.log10(er/3.7 + 2.51/(Re*math.sqrt(f_turb)))))**2
@@ -423,20 +410,12 @@ def colebrook(Re, er):
         f_turb = fn
     if Re >= 4000:
         return f_turb
-    # Zona de transição 2300–4000: interpolação linear entre os dois regimes
     f_lam_2300  = 64 / 2300
     f_turb_4000 = 0.25 / (math.log10(er/3.7 + 5.74/4000**0.9))**2
     alpha = (Re - 2300) / (4000 - 2300)
     return f_lam_2300 + alpha * (f_turb_4000 - f_lam_2300)
 
-
 def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm):
-    """
-    segments     : list of dicts with keys d, L, c90, tee, ve, red_n, d_up
-    dz           : static head (m) - global, applied once
-    ctrl_valves  : list of (Kv, opening_pct) - parallel control valves
-    rug_global_mm: absolute roughness in mm (global, same for all segments)
-    """
     if Q <= 0:
         return 0, 0, 0, dz, 0
 
@@ -451,14 +430,11 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm):
         Re  = rho_f * V * d / mu_f
         f   = colebrook(Re, rug / d)
         Hd_total += f * (L / d) * V**2 / (2 * 9.81)
-        # Reduction K — contraction uses K=0.5*(1-(d/d_up)^2), expansion Borda-Carnot
         K_red = 0.0
         if seg.get('red_n', 0) > 0 and seg.get('d_up', 0) > d:
-            area_ratio = (d / seg['d_up']) ** 2  # A_small / A_large
-            # Contraction: K ref to small side velocity
+            area_ratio = (d / seg['d_up']) ** 2
             K_red = 0.5 * (1.0 - area_ratio) * seg['red_n']
         elif seg.get('red_n', 0) > 0 and seg.get('d_up', 0) < d:
-            # Expansion: Borda-Carnot, K ref to small side (upstream = smaller)
             area_ratio = (seg['d_up'] / d) ** 2
             K_red = (1.0 - area_ratio) ** 2 * seg['red_n']
         K_seg = (seg['c90'] * 0.3 + seg['tee'] * 0.5 +
@@ -478,7 +454,6 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm):
 
     return Hd_total + Hl_total + dz + Hc, Hd_total, Hl_total, dz, Hc
 
-
 def hm(h):
     return f"{int(h)}h {int((h-int(h))*60)}min"
 
@@ -487,12 +462,6 @@ def hm(h):
 # PDF REPORT BUILDER
 # ─────────────────────────────────────────────────────────────────────────────
 def build_report_pdf(lang, th_data, hy_data, global_params):
-    """
-    Build a PDF report in memory and return bytes.
-    th_data  : dict with thermal simulation results (or None)
-    hy_data  : dict with hydraulic results (or None)
-    global_params: dict with system-level inputs
-    """
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.units import mm
@@ -504,26 +473,14 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
     import tempfile, os
 
     PT = lang == "pt"
-
-    # ── Styles ────────────────────────────────────────────────────────────────
     styles = getSampleStyleSheet()
-    style_title   = ParagraphStyle('ReportTitle', fontSize=18, fontName='Helvetica-Bold',
-                                   spaceAfter=6, alignment=TA_CENTER)
-    style_subtitle= ParagraphStyle('Subtitle', fontSize=10, fontName='Helvetica',
-                                   textColor=colors.HexColor('#555555'),
-                                   spaceAfter=14, alignment=TA_CENTER)
-    style_h1      = ParagraphStyle('H1', fontSize=13, fontName='Helvetica-Bold',
-                                   spaceBefore=14, spaceAfter=6,
-                                   textColor=colors.HexColor('#1a3a5c'))
-    style_h2      = ParagraphStyle('H2', fontSize=11, fontName='Helvetica-Bold',
-                                   spaceBefore=10, spaceAfter=4,
-                                   textColor=colors.HexColor('#2c5f8a'))
-    style_body    = ParagraphStyle('Body', fontSize=9, fontName='Helvetica',
-                                   spaceAfter=4, leading=14)
-    style_small   = ParagraphStyle('Small', fontSize=8, fontName='Helvetica',
-                                   textColor=colors.HexColor('#666666'), spaceAfter=2)
+    style_title   = ParagraphStyle('ReportTitle', fontSize=18, fontName='Helvetica-Bold', spaceAfter=6, alignment=TA_CENTER)
+    style_subtitle= ParagraphStyle('Subtitle', fontSize=10, fontName='Helvetica', textColor=colors.HexColor('#555555'), spaceAfter=14, alignment=TA_CENTER)
+    style_h1      = ParagraphStyle('H1', fontSize=13, fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6, textColor=colors.HexColor('#1a3a5c'))
+    style_h2      = ParagraphStyle('H2', fontSize=11, fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=4, textColor=colors.HexColor('#2c5f8a'))
+    style_body    = ParagraphStyle('Body', fontSize=9, fontName='Helvetica', spaceAfter=4, leading=14)
+    style_small   = ParagraphStyle('Small', fontSize=8, fontName='Helvetica', textColor=colors.HexColor('#666666'), spaceAfter=2)
 
-    # ── Table style helper ────────────────────────────────────────────────────
     def tbl_style(header_color='#1a3a5c'):
         return TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor(header_color)),
@@ -541,7 +498,6 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         ])
 
     def tbl_noheader():
-        """Table style with no distinct header row — all rows uniform."""
         return TableStyle([
             ('FONTNAME',   (0,0), (-1,-1), 'Helvetica'),
             ('FONTSIZE',   (0,0), (-1,-1), 8),
@@ -555,7 +511,6 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
             ('BOTTOMPADDING', (0,0), (-1,-1), 3),
         ])
 
-    # ── Matplotlib chart → PNG bytes → ReportLab Image ────────────────────────
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -576,26 +531,19 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
     def make_thermal_chart(d):
         plt.rcParams.update(PLT_STYLE)
         fig_m, ax = plt.subplots(figsize=(9, 4.2))
-        ax.plot(d['t_hp'], d['T_hp'], color='orangered', lw=2,
-                label='Aquecimento' if PT else 'Heating')
-        ax.plot(d['tc_h'], d['Tf_c'], color='royalblue', lw=2,
-                label='Calibração' if PT else 'Calibration')
-        ax.axhline(d['T110'], color='purple', ls='--', lw=1,
-                   label=f"T 110%µ = {d['T110']:.1f}°C")
+        ax.plot(d['t_hp'], d['T_hp'], color='orangered', lw=2, label='Aquecimento' if PT else 'Heating')
+        ax.plot(d['tc_h'], d['Tf_c'], color='royalblue', lw=2, label='Calibração' if PT else 'Calibration')
+        ax.axhline(d['T110'], color='purple', ls='--', lw=1, label=f"T 110%µ = {d['T110']:.1f}°C")
         if d['T90']:
-            ax.axhline(d['T90'], color='green', ls='--', lw=1,
-                       label=f"T 90%µ = {d['T90']:.1f}°C")
-        ax.axhline(d['T_eq'], color='orangered', ls=':', lw=1,
-                   label=f"T_eq = {d['T_eq']:.1f}°C")
+            ax.axhline(d['T90'], color='green', ls='--', lw=1, label=f"T 90%µ = {d['T90']:.1f}°C")
+        ax.axhline(d['T_eq'], color='orangered', ls=':', lw=1, label=f"T_eq = {d['T_eq']:.1f}°C")
         ax.axvline(d['t110_h'], color='purple', ls=':', lw=1)
         if d['t90_h']:
             ax.axvline(d['t90_h'], color='green', ls=':', lw=1)
-            ax.axvspan(d['t110_h'], d['t90_h'], alpha=0.08, color='green',
-                       label='Janela calibração' if PT else 'Calib. window')
+            ax.axvspan(d['t110_h'], d['t90_h'], alpha=0.08, color='green', label='Janela calibração' if PT else 'Calib. window')
         ax.set_xlabel('Tempo (h)' if PT else 'Time (h)', fontsize=9)
         ax.set_ylabel('Temperatura (°C)' if PT else 'Temperature (°C)', fontsize=9)
-        ax.set_title('Temperatura do Fluido vs Tempo' if PT else 'Fluid Temperature vs Time',
-                     fontsize=10, fontweight='bold')
+        ax.set_title('Temperatura do Fluido vs Tempo' if PT else 'Fluid Temperature vs Time', fontsize=10, fontweight='bold')
         ax.legend(fontsize=7, ncol=3, loc='lower right')
         fig_m.tight_layout()
         return mpl_to_rl(fig_m)
@@ -604,28 +552,23 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         plt.rcParams.update(PLT_STYLE)
         fig_m, ax = plt.subplots(figsize=(9, 4.8))
         Qr = d['Qr']
-        # System curves
-        ax.plot(Qr, d['H_sys20'],  color='steelblue', lw=2,
-                label='Sistema 20%' if PT else 'System 20%')
-        ax.plot(Qr, d['H_sys100'], color='royalblue', lw=2,
-                label='Sistema 100%' if PT else 'System 100%')
+        ax.plot(Qr, d['H_sys20'],  color='steelblue', lw=2, label='Sistema 20%' if PT else 'System 20%')
+        ax.plot(Qr, d['H_sys100'], color='royalblue', lw=2, label='Sistema 100%' if PT else 'System 100%')
+        
+        # Base pipe
+        ax.plot(Qr, d.get('H_sys_base', []), color='gray', lw=1.5, ls='--', label='Base Pipe')
+        
         uop = d['user_op']
         if uop not in (20, 100):
-            ax.plot(Qr, d['H_sys_usr'], color='cornflowerblue', lw=1.5, ls=':',
-                    label=f"Sistema {uop}%" if PT else f"System {uop}%")
-        # Pump curves
-        ax.plot(d['Qmin'], d['Hmin'], color='#FFB300', lw=2,
-                label=f"Bomba {d['pc_fmin']:.0f}Hz" if PT else f"Pump {d['pc_fmin']:.0f}Hz")
-        ax.plot(d['Qmx'],  d['Hmx'],  color='#CC0000', lw=2,
-                label=f"Bomba {d['pc_fmax']:.0f}Hz" if PT else f"Pump {d['pc_fmax']:.0f}Hz")
+            ax.plot(Qr, d['H_sys_usr'], color='cornflowerblue', lw=1.5, ls=':', label=f"Sistema {uop}%" if PT else f"System {uop}%")
+        
+        ax.plot(d['Qmin'], d['Hmin'], color='#FFB300', lw=2, label=f"Bomba {d['pc_fmin']:.0f}Hz" if PT else f"Pump {d['pc_fmin']:.0f}Hz")
+        ax.plot(d['Qmx'],  d['Hmx'],  color='#CC0000', lw=2, label=f"Bomba {d['pc_fmax']:.0f}Hz" if PT else f"Pump {d['pc_fmax']:.0f}Hz")
         if d['pc_freq0'] not in (d['pc_fmin'], d['pc_fmax']):
-            ax.plot(d['Qnom'], d['Hnom'], color='orangered', lw=1.5, ls=':',
-                    label=f"Bomba {d['pc_freq0']:.0f}Hz" if PT else f"Pump {d['pc_freq0']:.0f}Hz")
-        # Operating points
+            ax.plot(d['Qnom'], d['Hnom'], color='orangered', lw=1.5, ls=':', label=f"Bomba {d['pc_freq0']:.0f}Hz" if PT else f"Pump {d['pc_freq0']:.0f}Hz")
+        
         op_colors = {'20%': '#e67e00', f"{uop}%": '#8B008B', '100%': '#006400'}
-        for freq_key, ops_t in [('fmin', d['ops_fmin_pts']),
-                                  ('fnom', d['ops_fnom_pts']),
-                                  ('fmax', d['ops_fmax_pts'])]:
+        for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fnom', d['ops_fnom_pts']), ('fmax', d['ops_fmax_pts'])]:
             sym = {'fmin': 'v', 'fnom': 'o', 'fmax': '^'}[freq_key]
             for lbl, (q_op, h_op) in [('20%', ops_t[0]), (f"{uop}%", ops_t[1]), ('100%', ops_t[2])]:
                 if q_op is not None:
@@ -636,45 +579,29 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         ax.set_xlim(0, d['hy_qmax'] * 1.05)
         ax.set_xlabel('Vazão (m³/h)' if PT else 'Flow Rate (m³/h)', fontsize=9)
         ax.set_ylabel('Altura Manométrica (m)' if PT else 'Head (m)', fontsize=9)
-        ax.set_title('Curva do Sistema e Bomba' if PT else 'System & Pump Curve',
-                     fontsize=10, fontweight='bold')
+        ax.set_title('Curva do Sistema e Bomba' if PT else 'System & Pump Curve', fontsize=10, fontweight='bold')
         ax.legend(fontsize=7, ncol=3, loc='upper right')
         fig_m.tight_layout()
         return mpl_to_rl(fig_m)
 
-    # ── Document ──────────────────────────────────────────────────────────────
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4,
-                            leftMargin=20*mm, rightMargin=20*mm,
-                            topMargin=20*mm, bottomMargin=20*mm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
     story = []
-    W = A4[0] - 40*mm   # usable width
+    W = A4[0] - 40*mm
 
-    # ── Cover / Header ────────────────────────────────────────────────────────
     story.append(Paragraph("🏭 Calibration Lab Sizing Tool", style_title))
-    caption = ("Relatório de Dimensionamento — Laboratório de Calibração de Medidores de Óleo"
-               if PT else
-               "Sizing Report — Oil Meter Calibration Laboratory")
+    caption = ("Relatório de Dimensionamento — Laboratório de Calibração de Medidores de Óleo" if PT else "Sizing Report — Oil Meter Calibration Laboratory")
     story.append(Paragraph(caption, style_subtitle))
-    story.append(Paragraph(
-        f"{'Gerado em' if PT else 'Generated'}: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-        style_small))
-    story.append(HRFlowable(width='100%', thickness=1.5,
-                            color=colors.HexColor('#1a3a5c'), spaceAfter=10))
+    story.append(Paragraph(f"{'Gerado em' if PT else 'Generated'}: {datetime.now().strftime('%d/%m/%Y %H:%M')}", style_small))
+    story.append(HRFlowable(width='100%', thickness=1.5, color=colors.HexColor('#1a3a5c'), spaceAfter=10))
 
-    # ── 1. Global Parameters ──────────────────────────────────────────────────
     gp = global_params
     story.append(Paragraph("1. " + ("Parâmetros Globais do Sistema" if PT else "Global System Parameters"), style_h1))
-
     gp_rows = [
-        [("Fluido" if PT else "Fluid"), gp['fluid'],
-         ("Diâmetro interno" if PT else "Inner diameter"), f"{gp['d_inner']:.4f} m"],
-        [("Diâmetro externo" if PT else "Outer diameter"), f"{gp['D_outer']:.4f} m",
-         ("Comprimento total" if PT else "Total length"), f"{gp['L_pipe']:.1f} m"],
-        [("Rugosidade" if PT else "Roughness"), f"{gp['rug_mm']:.3f} mm",
-         ("Desnível estático" if PT else "Static head"), f"{gp['dz_glob']:.1f} m"],
-        [("Emissividade" if PT else "Emissivity"), f"{gp['eps_emit']:.2f}",
-         ("Convecção externa" if PT else "External conv."), f"{gp['h_ext']:.1f} W/m²·K"],
+        [("Fluido" if PT else "Fluid"), gp['fluid'], ("Diâmetro interno" if PT else "Inner diameter"), f"{gp['d_inner']:.4f} m"],
+        [("Diâmetro externo" if PT else "Outer diameter"), f"{gp['D_outer']:.4f} m", ("Comprimento total" if PT else "Total length"), f"{gp['L_pipe']:.1f} m"],
+        [("Rugosidade" if PT else "Roughness"), f"{gp['rug_mm']:.3f} mm", ("Desnível estático" if PT else "Static head"), f"{gp['dz_glob']:.1f} m"],
+        [("Emissividade" if PT else "Emissivity"), f"{gp['eps_emit']:.2f}", ("Convecção externa" if PT else "External conv."), f"{gp['h_ext']:.1f} W/m²·K"],
     ]
     t = Table(gp_rows, colWidths=[W*0.22, W*0.28, W*0.22, W*0.28])
     t.setStyle(TableStyle([
@@ -689,38 +616,26 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
     ]))
     story.append(t)
 
-    # ── 2. Hydraulic / System Curve ───────────────────────────────────────────
     if hy_data:
         story.append(Paragraph("2. " + ("Curva do Sistema e Bomba" if PT else "System & Pump Curve"), style_h1))
-
         story.append(Paragraph("2.1 " + ("Parâmetros Hidráulicos" if PT else "Hydraulic Parameters"), style_h2))
         hy_inp = [
-            [("Fluido — densidade" if PT else "Fluid — density"), f"{hy_data['hy_rho']:.0f} kg/m³",
-             ("Viscosidade nominal" if PT else "Nominal viscosity"), f"{hy_data['hy_mu_cP']:.1f} cP"],
-            [("Vazão máxima" if PT else "Max flow rate"), f"{hy_data['hy_qmax']:.0f} m³/h",
-             ("Frequência nominal" if PT else "Nominal frequency"), f"{hy_data['pc_freq0']:.0f} Hz"],
-            [("Freq. mínima inversor" if PT else "VFD min freq."), f"{hy_data['pc_fmin']:.0f} Hz",
-             ("Rugosidade global" if PT else "Global roughness"), f"{hy_data.get('rug_mm', 0.046):.3f} mm"],
+            [("Fluido — densidade" if PT else "Fluid — density"), f"{hy_data['hy_rho']:.0f} kg/m³", ("Viscosidade nominal" if PT else "Nominal viscosity"), f"{hy_data['hy_mu_cP']:.1f} cP"],
+            [("Vazão máxima" if PT else "Max flow rate"), f"{hy_data['hy_qmax']:.0f} m³/h", ("Frequência nominal" if PT else "Nominal frequency"), f"{hy_data['pc_freq0']:.0f} Hz"],
+            [("Freq. mínima inversor" if PT else "VFD min freq."), f"{hy_data['pc_fmin']:.0f} Hz", ("Rugosidade global" if PT else "Global roughness"), f"{hy_data.get('rug_mm', 0.046):.3f} mm"],
         ]
         th2 = Table(hy_inp, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
         th2.setStyle(tbl_noheader())
         story.append(th2)
-
-
         story.append(Paragraph("2.2 " + ("Curva do Sistema e Pontos de Operação" if PT else "System Curve & Operating Points"), style_h2))
         story.append(make_hydraulic_chart(hy_data))
-
-        # Operating point tables
         story.append(Paragraph("2.3 " + ("Pontos de Operação — Rotação Variável" if PT else "Operating Points — Variable Speed"), style_h2))
         freq_labels = [
             f"{hy_data['pc_fmin']:.0f} Hz ({'mín.' if PT else 'min'})",
             f"{hy_data['pc_freq0']:.0f} Hz ({'nominal' if PT else 'rated'})",
             f"{hy_data['pc_fmax']:.0f} Hz ({'máx.' if PT else 'max'})",
         ]
-        op_header = [("Abertura" if PT else "Opening"),
-                     ("Vazão" if PT else "Flow"),
-                     ("Altura" if PT else "Head")]
-
+        op_header = [("Abertura" if PT else "Opening"), ("Vazão" if PT else "Flow"), ("Altura" if PT else "Head")]
         op_col_w = W / 3 - 2*mm
         op_tables = []
         for fl, ops_t in zip(freq_labels, [hy_data['ops_fmin'], hy_data['ops_fnom'], hy_data['ops_fmax']]):
@@ -734,38 +649,23 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
             tbl_op = Table(rows_op, colWidths=[op_col_w*0.3, op_col_w*0.35, op_col_w*0.35])
             tbl_op.setStyle(tbl_style('#2c5f8a'))
             op_tables.append([Paragraph(f"<b>{fl}</b>", style_small), tbl_op])
-
-        # Layout 3 tables side by side using a wrapper table
-        wrap = Table([[op_tables[0][0], op_tables[1][0], op_tables[2][0]],
-                      [op_tables[0][1], op_tables[1][1], op_tables[2][1]]],
-                     colWidths=[W/3, W/3, W/3])
-        wrap.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'),
-                                  ('LEFTPADDING', (0,0), (-1,-1), 2),
-                                  ('RIGHTPADDING', (0,0), (-1,-1), 2)]))
+        wrap = Table([[op_tables[0][0], op_tables[1][0], op_tables[2][0]], [op_tables[0][1], op_tables[1][1], op_tables[2][1]]], colWidths=[W/3, W/3, W/3])
+        wrap.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 2), ('RIGHTPADDING', (0,0), (-1,-1), 2)]))
         story.append(wrap)
 
     story.append(PageBreak())
-    # ── 3. Thermal Simulation ─────────────────────────────────────────────────
     if th_data:
         story.append(Paragraph("3. " + ("Simulação Térmica" if PT else "Thermal Simulation"), style_h1))
-
         story.append(Paragraph("3.1 " + ("Parâmetros de Entrada" if PT else "Input Parameters"), style_h2))
         inp_rows = [
-            [("Volume total" if PT else "Total volume"), f"{th_data['vol_m3']:.1f} m³",
-             ("Temp. ambiente" if PT else "Ambient temp."), f"{th_data['T_amb']:.1f} °C"],
-            [("Viscosidade nominal" if PT else "Nominal viscosity"), f"{th_data['mu_nom_cP']:.1f} cP",
-             ("Tempo simulação" if PT else "Simulation time"), f"{th_data['t_sim_h']:.1f} h"],
+            [("Volume total" if PT else "Total volume"), f"{th_data['vol_m3']:.1f} m³", ("Temp. ambiente" if PT else "Ambient temp."), f"{th_data['T_amb']:.1f} °C"],
+            [("Viscosidade nominal" if PT else "Nominal viscosity"), f"{th_data['mu_nom_cP']:.1f} cP", ("Tempo simulação" if PT else "Simulation time"), f"{th_data['t_sim_h']:.1f} h"],
         ]
         ph_rows = [
-            [("" if PT else ""),
-             ("Fase Aquecimento" if PT else "Heating Phase"),
-             ("Fase Calibração" if PT else "Calibration Phase")],
-            [("Potência bomba" if PT else "Pump power"),
-             f"{th_data['P_heat']:.1f} kW", f"{th_data['P_cal']:.1f} kW"],
-            [("Vazão" if PT else "Flow rate"),
-             f"{th_data['Q_heat']:.0f} m³/h", f"{th_data['Q_cal']:.0f} m³/h"],
-            [("Eficiência" if PT else "Efficiency"),
-             f"{th_data['ef_heat']:.0f}%", f"{th_data['ef_cal']:.0f}%"],
+            [("" if PT else ""), ("Fase Aquecimento" if PT else "Heating Phase"), ("Fase Calibração" if PT else "Calibration Phase")],
+            [("Potência bomba" if PT else "Pump power"), f"{th_data['P_heat']:.1f} kW", f"{th_data['P_cal']:.1f} kW"],
+            [("Vazão" if PT else "Flow rate"), f"{th_data['Q_heat']:.0f} m³/h", f"{th_data['Q_cal']:.0f} m³/h"],
+            [("Eficiência" if PT else "Efficiency"), f"{th_data['ef_heat']:.0f}%", f"{th_data['ef_cal']:.0f}%"],
         ]
         ti = Table(inp_rows, colWidths=[W*0.25, W*0.25, W*0.25, W*0.25])
         ti.setStyle(tbl_noheader())
@@ -774,43 +674,29 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         tp = Table(ph_rows, colWidths=[W*0.35, W*0.325, W*0.325])
         tp.setStyle(tbl_noheader())
         story.append(tp)
-
         story.append(Paragraph("3.2 " + ("Resultados" if PT else "Results"), style_h2))
         res_rows = [
             [("Parâmetro" if PT else "Parameter"), ("Valor" if PT else "Value")],
             [("Viscosidade alvo" if PT else "Target viscosity"),    f"{th_data['mu_nom_cP']:.1f} cP"],
-            [("Temperatura alvo (100% µ)" if PT else "Target temp. (100% µ)"),
-             f"{th_data['Tnom']:.1f} °C" if th_data['Tnom'] else "N/A"],
-            [("T início calibração (110% µ)" if PT else "Calib. start temp (110% µ)"),
-             f"{th_data['T110']:.1f} °C"],
-            [("T fim calibração (90% µ)" if PT else "Calib. end temp (90% µ)"),
-             f"{th_data['T90']:.1f} °C" if th_data['T90'] else "N/A"],
-            [("Temperatura de equilíbrio" if PT else "Equilibrium temperature"),
-             f"{th_data['T_eq']:.1f} °C"],
+            [("Temperatura alvo (100% µ)" if PT else "Target temp. (100% µ)"), f"{th_data['Tnom']:.1f} °C" if th_data['Tnom'] else "N/A"],
+            [("T início calibração (110% µ)" if PT else "Calib. start temp (110% µ)"), f"{th_data['T110']:.1f} °C"],
+            [("T fim calibração (90% µ)" if PT else "Calib. end temp (90% µ)"), f"{th_data['T90']:.1f} °C" if th_data['T90'] else "N/A"],
+            [("Temperatura de equilíbrio" if PT else "Equilibrium temperature"), f"{th_data['T_eq']:.1f} °C"],
             [("Tempo de aquecimento" if PT else "Heating time"),    hm(th_data['t110_h'])],
-            [("Janela de calibração" if PT else "Calibration window"),
-             hm(th_data['cwin_h']) if th_data['cwin_h'] else ("Não atingida" if PT else "Not reached")],
-            [("Energia — aquecimento" if PT else "Energy — heating"),
-             f"{th_data['E_heat']:.1f} kWh"],
-            [("Energia — calibração" if PT else "Energy — calibration"),
-             f"{th_data['E_cal']:.1f} kWh" if th_data['E_cal'] is not None else ("Não atingida" if PT else "Not reached")],
-            [("Energia total" if PT else "Total energy"),
-             f"{th_data['E_total']:.1f} kWh" if th_data['E_total'] is not None else "—"],
+            [("Janela de calibração" if PT else "Calibration window"), hm(th_data['cwin_h']) if th_data['cwin_h'] else ("Não atingida" if PT else "Not reached")],
+            [("Energia — aquecimento" if PT else "Energy — heating"), f"{th_data['E_heat']:.1f} kWh"],
+            [("Energia — calibração" if PT else "Energy — calibration"), f"{th_data['E_cal']:.1f} kWh" if th_data['E_cal'] is not None else ("Não atingida" if PT else "Not reached")],
+            [("Energia total" if PT else "Total energy"), f"{th_data['E_total']:.1f} kWh" if th_data['E_total'] is not None else "—"],
         ]
         tr = Table(res_rows, colWidths=[W*0.6, W*0.4])
         tr.setStyle(tbl_style())
         story.append(tr)
-
         story.append(Paragraph("3.3 " + ("Curva de Temperatura" if PT else "Temperature Curve"), style_h2))
         story.append(make_thermal_chart(th_data))
 
-    # ── Footer note ───────────────────────────────────────────────────────────
     story.append(Spacer(1, 12))
-    story.append(HRFlowable(width='100%', thickness=0.5,
-                            color=colors.HexColor('#aaaaaa'), spaceAfter=4))
-    footer = ("*Validar com cálculos detalhados antes da especificação final.*"
-              if PT else
-              "*Always validate with detailed engineering calculations before final specification.*")
+    story.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#aaaaaa'), spaceAfter=4))
+    footer = ("*Validar com cálculos detalhados antes da especificação final.*" if PT else "*Always validate with detailed engineering calculations before final specification.*")
     story.append(Paragraph(footer, style_small))
 
     doc.build(story)
@@ -818,9 +704,7 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
     return buf.read()
 
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -906,7 +790,7 @@ st.title(S["app_title"])
 st.caption(S["app_caption"])
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TABS (no PID tab)
+# TABS
 # ─────────────────────────────────────────────────────────────────────────────
 tab_hy, tab_th, tab_mn = st.tabs([
     S["tab_hy"], S["tab_th"], S["tab_mn"]
@@ -922,66 +806,46 @@ with tab_hy:
     st.subheader(S["seg_hdr"])
     st.info(S["seg_note"])
 
-    # Global params displayed as read-only reference
     g1, g2, g3 = st.columns(3)
     g1.metric(S["hy_rug"], f"{rug_mm:.3f} mm")
     g2.metric(S["hy_dz"],  f"{dz_glob:.1f} m")
     g3.metric(S["d_out"],  f"{D_outer:.4f} m  (térmica)" if lang=="pt" else f"{D_outer:.4f} m  (thermal)")
 
-    # Session-state segment list
-    # red_n = number of reductions INTO this segment; d_up = upstream diameter for K calc
     _SEG_DEFAULTS = [
         {'d': d_inner, 'L': L_pipe, 'c90': 4, 'tee': 2, 've': 3, 'red_n': 0, 'd_up': 0.30},
     ]
     if 'hy_segments' not in st.session_state:
         st.session_state['hy_segments'] = [s.copy() for s in _SEG_DEFAULTS]
 
-    # Add / remove buttons
     ba, bb = st.columns(2)
     if ba.button(S["seg_add"], key="seg_add_btn"):
         prev = st.session_state['hy_segments'][-1]
         st.session_state['hy_segments'].append(
             {'d': prev['d'], 'L': 10.0, 'c90': 0, 'tee': 0, 've': 0, 'red_n': 0, 'd_up': prev['d']*1.25})
         st.rerun()
-    if bb.button(S["seg_del"], key="seg_del_btn",
-                 disabled=len(st.session_state['hy_segments']) <= 1):
+    if bb.button(S["seg_del"], key="seg_del_btn", disabled=len(st.session_state['hy_segments']) <= 1):
         st.session_state['hy_segments'].pop()
         st.rerun()
 
-    # Render one row per segment
-    # Cols: #label | d | L | c90 | tee | ve | red_n | d_up
     COL_W = [0.07, 0.12, 0.10, 0.10, 0.10, 0.10, 0.10, 0.14]
     hdr = st.columns(COL_W)
-    for h, lbl in zip(hdr, [S["seg_lbl"], S["seg_dn"], S["seg_L"],
-                              S["seg_c90"], S["seg_tee"], S["seg_ve"],
-                              S["seg_red"], S["seg_dred"]]):
+    for h, lbl in zip(hdr, [S["seg_lbl"], S["seg_dn"], S["seg_L"], S["seg_c90"], S["seg_tee"], S["seg_ve"], S["seg_red"], S["seg_dred"]]):
         h.markdown(f"**{lbl}**")
 
     for si, seg in enumerate(st.session_state['hy_segments']):
         cols = st.columns(COL_W)
         cols[0].markdown(f"**#{si+1}**")
-        seg['d']     = cols[1].number_input("d",     value=seg['d'],     min_value=0.005,
-                                             step=0.001, format="%.4f",
-                                             label_visibility="collapsed", key=f"sd_{si}")
-        seg['L']     = cols[2].number_input("L",     value=seg['L'],     min_value=0.0,
-                                             label_visibility="collapsed", key=f"sL_{si}")
-        seg['c90']   = cols[3].number_input("c90",   value=seg['c90'],   min_value=0, step=1,
-                                             label_visibility="collapsed", key=f"sc90_{si}")
-        seg['tee']   = cols[4].number_input("tee",   value=seg['tee'],   min_value=0, step=1,
-                                             label_visibility="collapsed", key=f"stee_{si}")
-        seg['ve']    = cols[5].number_input("ve",    value=seg['ve'],    min_value=0, step=1,
-                                             label_visibility="collapsed", key=f"sve_{si}")
-        seg['red_n'] = cols[6].number_input("red_n", value=seg['red_n'], min_value=0, step=1,
-                                             label_visibility="collapsed", key=f"sredn_{si}")
-        seg['d_up']  = cols[7].number_input("d_up",  value=seg['d_up'],  min_value=0.005,
-                                             step=0.001, format="%.4f",
-                                             label_visibility="collapsed", key=f"sdup_{si}")
+        seg['d']     = cols[1].number_input("d",     value=seg['d'],     min_value=0.005, step=0.001, format="%.4f", label_visibility="collapsed", key=f"sd_{si}")
+        seg['L']     = cols[2].number_input("L",     value=seg['L'],     min_value=0.0, label_visibility="collapsed", key=f"sL_{si}")
+        seg['c90']   = cols[3].number_input("c90",   value=seg['c90'],   min_value=0, step=1, label_visibility="collapsed", key=f"sc90_{si}")
+        seg['tee']   = cols[4].number_input("tee",   value=seg['tee'],   min_value=0, step=1, label_visibility="collapsed", key=f"stee_{si}")
+        seg['ve']    = cols[5].number_input("ve",    value=seg['ve'],    min_value=0, step=1, label_visibility="collapsed", key=f"sve_{si}")
+        seg['red_n'] = cols[6].number_input("red_n", value=seg['red_n'], min_value=0, step=1, label_visibility="collapsed", key=f"sredn_{si}")
+        seg['d_up']  = cols[7].number_input("d_up",  value=seg['d_up'],  min_value=0.005, step=0.001, format="%.4f", label_visibility="collapsed", key=f"sdup_{si}")
 
     hy_segments = st.session_state['hy_segments']
     total_L = sum(s['L'] for s in hy_segments)
     st.caption(S["seg_sum"].format(L=total_L, n=len(hy_segments)))
-
-    # Global values used in calculation
     hy_dz = dz_glob
 
     st.subheader(S["ctrl_v"])
@@ -997,29 +861,24 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         kv_r_  = kk3.number_input(S["kv_rho"], value=850.0, key="kvrho")
         st.success(S["kv_res"].format(kv=kv_Q_/math.sqrt(kv_dP_*kv_r_/1000)))
 
-    n_ctrl = st.number_input(S["n_ctrl_lbl"], min_value=0, value=1, step=1,
-                             help=S["n_ctrl_help"])
+    n_ctrl = st.number_input(S["n_ctrl_lbl"], min_value=0, value=1, step=1, help=S["n_ctrl_help"])
     st.info(S["ctrl_series_note"])
 
-    # Build ctrl_valves list AND store FCV curve data per valve
-    ctrl_valves    = []   # list of (Kv_effective_at_user_opening) for head_loss
-    fcv_curve_data = []   # list of (mode, interp_fn) for sys_curve override
+    ctrl_valves    = []
+    fcv_curve_data = []
 
     for i in range(int(n_ctrl)):
         st.markdown(f"**{S['ctrl_v']} {i+1}**")
-        cv_mode = st.radio(S["kv_mode_lbl"], [S["kv_mode_single"], S["kv_mode_curve"]],
-                           key=f"cvmode_{i}", horizontal=True)
+        cv_mode = st.radio(S["kv_mode_lbl"], [S["kv_mode_single"], S["kv_mode_curve"]], key=f"cvmode_{i}", horizontal=True)
 
         if cv_mode == S["kv_mode_single"]:
             cv1, cv2 = st.columns(2)
-            kv_i = cv1.number_input(S["kv_lbl"], min_value=0.0, value=870.0,
-                                    key=f"kv_{i}", help=S["kv_help"])
-            op_i = cv2.slider(S["op_lbl"], 0, 100, 100,
-                              key=f"op_{i}", help=S["op_help"])
+            kv_i = cv1.number_input(S["kv_lbl"], min_value=0.0, value=870.0, key=f"kv_{i}", help=S["kv_help"])
+            op_i = cv2.slider(S["op_lbl"], 0, 100, 100, key=f"op_{i}", help=S["op_help"])
             ctrl_valves.append((kv_i, op_i))
             fcv_curve_data.append(("linear", kv_i))
 
-        else:  # 3-point curve mode
+        else:
             st.caption(S["kv_curve_help"])
             default_cv_pts = [(25, 45), (50, 394), (100, 913)]
             cv_pts_op = []; cv_pts_kv = []
@@ -1027,39 +886,31 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             for j, (dop, dkv) in enumerate(default_cv_pts):
                 with cc[j]:
                     st.markdown(f"**{S['pc_pt']} {j+1}**")
-                    op_j = st.number_input(S["kv_op_j"], value=float(dop),
-                                           min_value=0.0, max_value=100.0,
-                                           key=f"cvop_{i}_{j}")
-                    kv_j = st.number_input(S["kv_kv_j"], value=float(dkv),
-                                           min_value=0.0, key=f"cvkv_{i}_{j}")
+                    op_j = st.number_input(S["kv_op_j"], value=float(dop), min_value=0.0, max_value=100.0, key=f"cvop_{i}_{j}")
+                    kv_j = st.number_input(S["kv_kv_j"], value=float(dkv), min_value=0.0, key=f"cvkv_{i}_{j}")
                     cv_pts_op.append(op_j); cv_pts_kv.append(kv_j)
 
-            op_user_i = st.slider(S["op_lbl"], 0, 100, 100,
-                                  key=f"op_{i}", help=S["op_help"])
+            op_user_i = st.slider(S["op_lbl"], 0, 100, 100, key=f"op_{i}", help=S["op_help"])
 
-            # Build interpolator (log-linear on Kv vs opening — equal % behaviour)
             import numpy as _np
             from scipy.interpolate import interp1d as _interp1d
             _ops = _np.array(cv_pts_op, dtype=float)
             _kvs = _np.array(cv_pts_kv, dtype=float)
             sort_i = _np.argsort(_ops)
             _ops, _kvs = _ops[sort_i], _kvs[sort_i]
-            # log-linear interpolation is natural for equal-percentage valves
             _log_kv = _np.log(_kvs)
-            _interp = _interp1d(_ops, _log_kv, kind='linear',
-                                fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
+            _interp = _interp1d(_ops, _log_kv, kind='linear', fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
             kv_at_user = float(_np.exp(_interp(op_user_i)))
-            ctrl_valves.append((kv_at_user, 100))   # Kv already resolved; pass 100% open
+            ctrl_valves.append((kv_at_user, 100))
             fcv_curve_data.append(("curve", (_ops, _kvs, _interp, op_user_i)))
 
     st.subheader(S["fl_hy"])
     fc1, fc2, fc3 = st.columns(3)
     hy_rho    = fc1.number_input(S["hy_rho"],  min_value=100.0, value=850.0)
     hy_mu_cP  = fc2.number_input(S["hy_mu_h"], min_value=0.01, value=25.0, help=S["hy_mu_h_h"])
-    hy_mu_hot = hy_mu_cP / 1000.0   # convert to Pa·s for calculations
+    hy_mu_hot = hy_mu_cP / 1000.0
     hy_qmax   = fc3.number_input(S["hy_qmax"], min_value=50.0, value=900.0, help=S["hy_qmax_h"])
 
-    # ── Pump curve inputs ──────────────────────────────────────────────────────
     st.subheader(S["pump_curve_hdr"])
     st.caption(S["pump_curve_help"])
 
@@ -1069,29 +920,39 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     pc_fmin  = pc3.number_input(S["pc_fmin"], min_value=5.0,  value=20.0)
     pc_fmax  = pc3.number_input(S["pc_fmax"], min_value=10.0, value=60.0)
 
-    # Default plausible 5-point pump curve (Q in m³/h, H in m)
     default_pts = [(0, 45), (200, 42), (400, 35), (600, 22), (800, 5)]
     pump_pts = []
     col_headers = st.columns(5)
     for i, (dq, dh) in enumerate(default_pts):
         with col_headers[i]:
             st.markdown(f"**{S['pc_pt']} {i+1}**")
-            q_i = st.number_input(S["pc_Q_lbl"].format(i+1), value=float(dq),
-                                  min_value=0.0, key=f"pcQ{i}")
-            h_i = st.number_input(S["pc_H_lbl"].format(i+1), value=float(dh),
-                                  min_value=0.0, key=f"pcH{i}")
+            q_i = st.number_input(S["pc_Q_lbl"].format(i+1), value=float(dq), min_value=0.0, key=f"pcQ{i}")
+            h_i = st.number_input(S["pc_H_lbl"].format(i+1), value=float(dh), min_value=0.0, key=f"pcH{i}")
             pump_pts.append((q_i, h_i))
 
+    # MODIFICADO AQUI: Lógica de simulação ativa (Reativa ao Slider)
     if st.button(S["calc_btn"], type="primary"):
+        st.session_state['hy_sim_active'] = True
+
+    if st.session_state.get('hy_sim_active', False):
         from scipy.interpolate import CubicSpline
         from scipy.optimize import brentq
 
         Qr = np.linspace(0, hy_qmax, 400)
 
-        # ── System curves at 3 valve openings ─────────────────────────────────
+        # ── System curves at 3 valve openings + Base Pipe ─────────────────────
         import numpy as _np2
+        
+        # Base Pipe (Sem Válvula)
+        def sys_curve_base(Q_arr):
+            H = []
+            for Q in Q_arr:
+                # Passa lista vazia [] para as válvulas de controle
+                h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm)
+                H.append(h)
+            return _np2.array(H)
+
         def resolve_ctrl_valves(op_pct):
-            """Build ctrl_valves list with Kv resolved at op_pct for each valve."""
             cv_resolved = []
             for idx, (mode, data) in enumerate(fcv_curve_data):
                 if mode == "linear":
@@ -1100,48 +961,44 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                 else:
                     _ops_c, _kvs_c, _interp_c, _user_op_c = data
                     kv_resolved = float(_np2.exp(_interp_c(op_pct)))
-                    cv_resolved.append((kv_resolved, 100))  # Kv already at this opening
+                    cv_resolved.append((kv_resolved, 100))
             return cv_resolved
 
         def sys_curve(Q_arr, op_pct):
             cv_ov = resolve_ctrl_valves(op_pct)
             H = []
             for Q in Q_arr:
-                h, *_ = head_loss(Q, hy_segments, hy_dz,
-                                  cv_ov, hy_rho, hy_mu_hot, rug_mm)
+                h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm)
                 H.append(h)
             return _np2.array(H)
 
-        H_sys20   = sys_curve(Qr, 20)
-        H_sys100  = sys_curve(Qr, 100)
-        # user_op: for curve mode, read the real slider value stored in fcv_curve_data
+        H_sys_base = sys_curve_base(Qr)
+        H_sys20    = sys_curve(Qr, 20)
+        H_sys100   = sys_curve(Qr, 100)
+
         if fcv_curve_data:
             mode0, data0 = fcv_curve_data[0]
             if mode0 == "linear":
                 user_op = ctrl_valves[0][1] if ctrl_valves else 100
             else:
-                user_op = int(data0[3])  # op_user_i stored as 4th element
+                user_op = int(data0[3])
         else:
             user_op = 100
         H_sys_usr = sys_curve(Qr, user_op)
 
         # ── Pump curves via affinity laws ──────────────────────────────────────
-        # Fit cubic spline on nominal curve
         Qp = np.array([p[0] for p in pump_pts])
         Hp = np.array([p[1] for p in pump_pts])
-        # sort by Q
         sort_idx = np.argsort(Qp)
         Qp, Hp = Qp[sort_idx], Hp[sort_idx]
-        cs_pump = CubicSpline(Qp, Hp, extrapolate=False)
 
         def pump_curve_at_freq(f_target):
             ratio = f_target / pc_freq0
-            Q_sc = Qp * ratio          # Q scales with speed ratio
-            H_sc = Hp * ratio**2       # H scales with speed ratio squared
+            Q_sc = Qp * ratio
+            H_sc = Hp * ratio**2
             cs = CubicSpline(Q_sc, H_sc, extrapolate=False)
             Q_full = np.linspace(0, Q_sc[-1], 400)
             H_full = cs(Q_full)
-            # clip negatives
             H_full = np.where(H_full < 0, np.nan, H_full)
             return Q_full, H_full, cs, Q_sc[-1]
 
@@ -1149,15 +1006,11 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         Qmin, Hmin, cs_fmin, Qmax_min = pump_curve_at_freq(pc_fmin)
         Qmx,  Hmx,  cs_fmax, Qmax_mx  = pump_curve_at_freq(pc_fmax)
 
-        # ── Operating points: intersection pump(nominal) × each system curve ──
         def find_op(cs_pump_f, Qmax_f, sys_H_arr, sys_Q_arr=Qr):
-            """Find Q where pump_H(Q) = sys_H(Q) via brentq."""
             cs_sys = CubicSpline(sys_Q_arr, sys_H_arr, extrapolate=True)
             diff = lambda Q: float(cs_pump_f(Q)) - float(cs_sys(Q))
-            # search within valid pump range
             Q_search = np.linspace(1, min(Qmax_f, hy_qmax), 300)
             d_vals = [diff(q) for q in Q_search]
-            # find sign changes
             ops = []
             for j in range(len(d_vals)-1):
                 if d_vals[j] * d_vals[j+1] < 0:
@@ -1167,7 +1020,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                         ops.append((q_op, h_op))
                     except Exception:
                         pass
-            return ops[-1] if ops else (None, None)  # take rightmost intersection
+            return ops[-1] if ops else (None, None)
 
         op20   = find_op(cs_nom, Qmax_nom, H_sys20)
         op100  = find_op(cs_nom, Qmax_nom, H_sys100)
@@ -1176,7 +1029,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         # ── Plot ──────────────────────────────────────────────────────────────
         fh = go.Figure()
 
-        # System curves — sólida para 20% e 100%, pontilhada para abertura do usuário
+        # MODIFICADO AQUI: Plotando o Base Pipe
+        fh.add_trace(go.Scatter(x=Qr, y=H_sys_base, mode='lines',
+            name=S["sys_base"], line=dict(color='gray', width=2, dash='dash')))
+
         fh.add_trace(go.Scatter(x=Qr, y=H_sys20, mode='lines',
             name=S["sys20"], line=dict(color='steelblue', width=2.5)))
         fh.add_trace(go.Scatter(x=Qr, y=H_sys100, mode='lines',
@@ -1186,94 +1042,79 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                 name=S["sys_user"] + f" ({user_op}%)",
                 line=dict(color='cornflowerblue', width=2, dash='dot')))
 
-        # Pump curves: fmin=amarelo, fmax=vermelho, nominal=pontilhado laranja
         fh.add_trace(go.Scatter(x=Qmin, y=Hmin, mode='lines',
-            name=S["pump_fmin"].format(f=pc_fmin),
-            line=dict(color='#FFB300', width=2.5)))          # amarelo âmbar
+            name=S["pump_fmin"].format(f=pc_fmin), line=dict(color='#FFB300', width=2.5)))
         fh.add_trace(go.Scatter(x=Qmx, y=Hmx, mode='lines',
-            name=S["pump_fmax"].format(f=pc_fmax),
-            line=dict(color='#CC0000', width=2.5)))          # vermelho
+            name=S["pump_fmax"].format(f=pc_fmax), line=dict(color='#CC0000', width=2.5)))
         if pc_freq0 not in (pc_fmin, pc_fmax):
             fh.add_trace(go.Scatter(x=Qnom, y=Hnom, mode='lines',
-                name=S["pump_nom"].format(f=pc_freq0),
-                line=dict(color='orangered', width=2, dash='dot')))
+                name=S["pump_nom"].format(f=pc_freq0), line=dict(color='orangered', width=2, dash='dot')))
 
-        # ── Operating points para as 3 rotações ──────────────────────────────
-        # Calcular OPs para fmin e fmax (nominal já calculado acima)
         def ops_for_freq(cs_f, Qmax_f):
-            o20_  = find_op(cs_f, Qmax_f, H_sys20)
-            ousr_ = find_op(cs_f, Qmax_f, H_sys_usr)
-            o100_ = find_op(cs_f, Qmax_f, H_sys100)
-            return o20_, ousr_, o100_
+            return (find_op(cs_f, Qmax_f, H_sys20), find_op(cs_f, Qmax_f, H_sys_usr), find_op(cs_f, Qmax_f, H_sys100))
 
         ops_fmin = ops_for_freq(cs_fmin, Qmax_min)
         ops_fnom = (op20, op_usr, op100)
         ops_fmax = ops_for_freq(cs_fmax, Qmax_mx)
 
-        # Cores por abertura da válvula (consistente entre rotações)
-        op_valve_colors = {
-            '20%':          '#e67e00',   # laranja
-            f'{user_op}%':  '#8B008B',   # roxo escuro
-            '100%':         '#006400',   # verde escuro
-        }
-        # Símbolos por rotação: mín=triângulo-baixo, nominal=círculo, máx=triângulo-cima
-        op_speed_symbols = {
-            'fmin': ('triangle-down', pc_fmin),
-            'fnom': ('circle',        pc_freq0),
-            'fmax': ('triangle-up',   pc_fmax),
-        }
+        op_valve_colors = {'20%': '#e67e00', f'{user_op}%': '#8B008B', '100%': '#006400'}
+        op_speed_symbols = {'fmin': ('triangle-down', pc_fmin), 'fnom': ('circle', pc_freq0), 'fmax': ('triangle-up', pc_fmax)}
 
         for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
             sym, freq_val = op_speed_symbols[speed_key]
-            for valve_lbl, (q_op, h_op) in [
-                ('20%',         ops_tuple[0]),
-                (f'{user_op}%', ops_tuple[1]),
-                ('100%',        ops_tuple[2]),
-            ]:
+            for valve_lbl, (q_op, h_op) in [('20%', ops_tuple[0]), (f'{user_op}%', ops_tuple[1]), ('100%', ops_tuple[2])]:
                 if q_op is not None:
                     col = op_valve_colors[valve_lbl]
                     fh.add_trace(go.Scatter(
                         x=[q_op], y=[h_op], mode='markers+text',
-                        marker=dict(color=col, size=13, symbol=sym,
-                                    line=dict(color='white', width=1.5)),
-                        text=[f"  <b>{valve_lbl} @ {freq_val}Hz</b><br>"
-                              f"  Q={q_op:.0f} m³/h | H={h_op:.1f} m"],
-                        textfont=dict(color=col, size=11),
-                        textposition='middle right',
-                        showlegend=False
+                        marker=dict(color=col, size=13, symbol=sym, line=dict(color='white', width=1.5)),
+                        text=[f"  <b>{valve_lbl} @ {freq_val}Hz</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"],
+                        textfont=dict(color=col, size=11), textposition='middle right', showlegend=False
                     ))
 
-        fh.add_vline(x=hy_qmax, line_dash="dot", line_color="gray",
-                     annotation_text=f"Q={hy_qmax:.0f} m³/h", annotation_position="top right")
+        # MODIFICADO AQUI: Anotações visuais do Valve dP para a rotação nominal
+        cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
+        for valve_lbl, (q_op, h_op) in [('20%', op20), (f'{user_op}%', op_usr), ('100%', op100)]:
+            if q_op is not None:
+                h_base_op = float(cs_sys_base(q_op))
+                dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0  # Conversão de mca para bar
 
-        # Y-axis: limit to 15% above highest pump shut-off head
+                fh.add_shape(type="line",
+                    x0=q_op, y0=h_base_op, x1=q_op, y1=h_op,
+                    line=dict(color=op_valve_colors.get(valve_lbl, 'black'), width=2, dash="dot")
+                )
+
+                fh.add_annotation(
+                    x=q_op, y=(h_op + h_base_op)/2,
+                    text=f"ΔP={dP_bar:.1f} bar",
+                    showarrow=False,
+                    xanchor="left",
+                    xshift=8,
+                    font=dict(color=op_valve_colors.get(valve_lbl, 'black'), size=11, family="Arial")
+                )
+
+        fh.add_vline(x=hy_qmax, line_dash="dot", line_color="gray", annotation_text=f"Q={hy_qmax:.0f} m³/h", annotation_position="top right")
+
         all_pump_H = list(Hnom[~np.isnan(Hnom)]) + list(Hmin[~np.isnan(Hmin)]) + list(Hmx[~np.isnan(Hmx)])
         y_max = max(all_pump_H) * 1.15 if all_pump_H else None
 
         fh.update_layout(
             title=S["hy_title"], xaxis_title=S["hy_px"], yaxis_title=S["hy_py"],
-            xaxis=dict(range=[0, hy_qmax * 1.05]),
-            yaxis=dict(range=[0, y_max]),
+            xaxis=dict(range=[0, hy_qmax * 1.05]), yaxis=dict(range=[0, y_max]),
             legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
             template="plotly_white", hovermode="x unified", height=560)
+        
         st.plotly_chart(fh, use_container_width=True)
 
-        # ── Operating point tables: 3 colunas — rotação mín / nominal / máx ────
         if any(q is not None for q, _ in [op20, op100, op_usr]):
             st.subheader(S["op_pt_sys"])
-
             def make_op_df(ops_tuple):
                 o20_, ousr_, o100_ = ops_tuple
                 rows_ = []
-                for lbl, (q_op, h_op) in [
-                    ("20%",         o20_),
-                    (f"{user_op}%", ousr_),
-                    ("100%",        o100_),
-                ]:
+                for lbl, (q_op, h_op) in [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]:
                     rows_.append({
-                        S["op_lbl"]: lbl,
-                        S["op_Q"]:   f"{q_op:.1f} m³/h" if q_op is not None else "—",
-                        S["op_H"]:   f"{h_op:.1f} m"    if h_op is not None else "—",
+                        S["op_lbl"]: lbl, S["op_Q"]: f"{q_op:.1f} m³/h" if q_op is not None else "—",
+                        S["op_H"]: f"{h_op:.1f} m" if h_op is not None else "—",
                     })
                 return pd.DataFrame(rows_)
 
@@ -1288,7 +1129,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                 st.markdown(f"**{S['pump_fmax'].format(f=pc_fmax)}**")
                 st.dataframe(make_op_df(ops_fmax), use_container_width=True, hide_index=True)
 
-        # Store results for PDF export
         def ops_as_list(ops_tuple):
             o20_, ousr_, o100_ = ops_tuple
             return [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]
@@ -1296,38 +1136,25 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         st.session_state['hy_data'] = {
             'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
             'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
-            'ops_fmin': ops_as_list(ops_fmin),
-            'ops_fnom': ops_as_list(ops_fnom),
-            'ops_fmax': ops_as_list(ops_fmax),
-            # raw arrays for PDF chart
-            'Qr': Qr,
-            'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
-            'user_op': user_op,
-            'Qnom': Qnom, 'Hnom': Hnom,
-            'Qmin': Qmin, 'Hmin': Hmin,
-            'Qmx': Qmx,  'Hmx': Hmx,
+            'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
+            'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
+            'user_op': user_op, 'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
-            'y_max': y_max,
-            'segments': [{k: v for k, v in s.items()} for s in hy_segments],
+            'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
             'rug_mm': rug_mm, 'dz_glob': dz_glob,
         }
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_th:
     st.header(S["th_header"])
-
-    # Row 1: System Data (full width, 4 columns)
     st.subheader(S["sys_data"])
     s1, s2, s3, s4 = st.columns(4)
-    vol_m3     = s1.number_input(S["vol"],    min_value=0.1, value=10.0)
-    T_amb      = s2.number_input(S["tamb"],   value=25.0)
+    vol_m3     = s1.number_input(S["vol"],     min_value=0.1, value=10.0)
+    T_amb      = s2.number_input(S["tamb"],    value=25.0)
     mu_nom_cP  = s3.number_input(S["mu_nom"], value=25.0, min_value=0.01)
-    t_sim_h    = s4.number_input(S["tsim"],   min_value=0.1, value=10.0)
+    t_sim_h    = s4.number_input(S["tsim"],    min_value=0.1, value=10.0)
 
     st.divider()
-
-    # Row 2: Heating | Calibration (side by side, below System Data)
     ph1, ph2 = st.columns(2)
     with ph1:
         st.subheader(S["heat_ph"])
@@ -1345,7 +1172,6 @@ with tab_th:
     st.divider()
 
     if st.button(S["run"], type="primary"):
-
         mu_110_pa = mu_nom_cP * 1.1 / 1000.0
         mu_90_pa  = mu_nom_cP * 0.9 / 1000.0
         T110 = solve_visc_temp(viscosity_model, mu_110_pa)
@@ -1355,10 +1181,8 @@ with tab_th:
         if T110 is None or T90 is None:
             st.error(S["err_mu"]); st.stop()
 
-        # Heating phase
-        # W_pump constant; F_flow affects thermal resistance path
-        W_heat  = P_heat  * (ef_heat/100) * hf_heat * 1000.0   # W
-        F_heat  = Q_heat  / 3600.0                              # m³/s
+        W_heat  = P_heat  * (ef_heat/100) * hf_heat * 1000.0   
+        F_heat  = Q_heat  / 3600.0                             
         m_fluid = vol_m3  * rho
 
         dt    = 1.0
@@ -1367,10 +1191,7 @@ with tab_th:
         Tf_h  = np.zeros(len(time)); Tf_h[0] = T_amb
 
         for i in range(1, len(time)):
-            dTdt = euler_step(Tf_h[i-1], T_amb, F_heat, W_heat,
-                              rho, cp_fluid, k_fluid,
-                              d_inner, D_outer, L_pipe,
-                              eps_emit, h_ext, m_fluid)
+            dTdt = euler_step(Tf_h[i-1], T_amb, F_heat, W_heat, rho, cp_fluid, k_fluid, d_inner, D_outer, L_pipe, eps_emit, h_ext, m_fluid)
             Tf_h[i] = Tf_h[i-1] + dTdt * dt
 
         idx110 = np.where(Tf_h >= T110)[0]
@@ -1383,7 +1204,6 @@ with tab_th:
         mask_h  = time <= t110_s
         t_hp    = time[mask_h]; T_hp = Tf_h[mask_h]
 
-        # Calibration phase
         W_cal  = P_cal * (ef_cal/100) * hf_cal * 1000.0
         F_cal  = Q_cal / 3600.0
 
@@ -1391,10 +1211,7 @@ with tab_th:
         Tf_c   = np.zeros(len(tc)); Tf_c[0] = T110_v
 
         for i in range(1, len(tc)):
-            dTdt = euler_step(Tf_c[i-1], T_amb, F_cal, W_cal,
-                              rho, cp_fluid, k_fluid,
-                              d_inner, D_outer, L_pipe,
-                              eps_emit, h_ext, m_fluid)
+            dTdt = euler_step(Tf_c[i-1], T_amb, F_cal, W_cal, rho, cp_fluid, k_fluid, d_inner, D_outer, L_pipe, eps_emit, h_ext, m_fluid)
             Tf_c[i] = Tf_c[i-1] + dTdt * dt
 
         T_eq  = Tf_c[-1]
@@ -1405,7 +1222,6 @@ with tab_th:
         else:
             t90_h = T90_v = cwin_h = None
 
-        # ── Results row 1: viscosities & temperatures (5 metrics) ──
         st.subheader(S["res_hdr"])
         r1, r2, r3, r4, r5 = st.columns(5)
         r1.metric(S["r_mu"],  f"{mu_nom_cP:.1f} cP")
@@ -1414,9 +1230,8 @@ with tab_th:
         r4.metric(S["r_T110"],f"{T110:.1f} °C")
         r5.metric(S["r_Teq"], f"{T_eq:.1f} °C")
 
-        # ── Results row 2: timing + energy ──
-        E_heat  = P_heat * t110_h                                        # kWh heating
-        E_cal   = P_cal  * cwin_h if cwin_h is not None else None        # kWh calibration window
+        E_heat  = P_heat * t110_h                                        
+        E_cal   = P_cal  * cwin_h if cwin_h is not None else None        
         E_total = E_heat + E_cal  if E_cal  is not None else None
 
         t1, t2, t3, t4, t5 = st.columns(5)
@@ -1426,42 +1241,26 @@ with tab_th:
         t4.metric(S["r_ec"], f"{E_cal:.1f} kWh"   if E_cal   is not None else S["na"])
         t5.metric(S["r_et"], f"{E_total:.1f} kWh"  if E_total is not None else S["na"])
 
-        # ── Plot ──
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=t_hp/3600, y=T_hp, mode='lines',
-            name=S["tr_heat"], line=dict(color='orangered', width=2.5)))
-        fig.add_trace(go.Scatter(x=tc/3600, y=Tf_c, mode='lines',
-            name=S["tr_calib"], line=dict(color='royalblue', width=2.5)))
+        fig.add_trace(go.Scatter(x=t_hp/3600, y=T_hp, mode='lines', name=S["tr_heat"], line=dict(color='orangered', width=2.5)))
+        fig.add_trace(go.Scatter(x=tc/3600, y=Tf_c, mode='lines', name=S["tr_calib"], line=dict(color='royalblue', width=2.5)))
 
         xf = [0, t_sim_h]
-        fig.add_trace(go.Scatter(x=xf, y=[T_eq,T_eq], mode='lines',
-            name=f'T_eq={T_eq:.1f}°C', line=dict(color='orangered', dash='dash')))
-        fig.add_trace(go.Scatter(x=xf, y=[T110,T110], mode='lines',
-            name=f'T 110%µ={T110:.1f}°C', line=dict(color='purple', dash='dot')))
-        fig.add_trace(go.Scatter(x=[t110_h,t110_h], y=[T_amb-5, T_eq+10], mode='lines',
-            name=f't₁₁₀={hm(t110_h)}', line=dict(color='purple', dash='dot')))
-        fig.add_trace(go.Scatter(x=[t110_h], y=[T110_v], mode='markers',
-            marker=dict(color='purple', size=9), showlegend=False))
+        fig.add_trace(go.Scatter(x=xf, y=[T_eq,T_eq], mode='lines', name=f'T_eq={T_eq:.1f}°C', line=dict(color='orangered', dash='dash')))
+        fig.add_trace(go.Scatter(x=xf, y=[T110,T110], mode='lines', name=f'T 110%µ={T110:.1f}°C', line=dict(color='purple', dash='dot')))
+        fig.add_trace(go.Scatter(x=[t110_h,t110_h], y=[T_amb-5, T_eq+10], mode='lines', name=f't₁₁₀={hm(t110_h)}', line=dict(color='purple', dash='dot')))
+        fig.add_trace(go.Scatter(x=[t110_h], y=[T110_v], mode='markers', marker=dict(color='purple', size=9), showlegend=False))
 
         if T90 is not None:
-            fig.add_trace(go.Scatter(x=xf, y=[T90,T90], mode='lines',
-                name=f'T 90%µ={T90:.1f}°C', line=dict(color='green', dash='dot')))
+            fig.add_trace(go.Scatter(x=xf, y=[T90,T90], mode='lines', name=f'T 90%µ={T90:.1f}°C', line=dict(color='green', dash='dot')))
         if t90_h is not None:
-            fig.add_trace(go.Scatter(x=[t90_h,t90_h], y=[T_amb-5, T_eq+10], mode='lines',
-                name=f't₉₀={hm(t90_h)}', line=dict(color='green', dash='dot')))
-            fig.add_trace(go.Scatter(x=[t90_h], y=[T90_v], mode='markers',
-                marker=dict(color='green', size=9), showlegend=False))
-            fig.add_vrect(x0=t110_h, x1=t90_h, fillcolor="green", opacity=0.07,
-                          layer="below", line_width=0,
-                          annotation_text=S["cw_lbl"], annotation_position="top left")
+            fig.add_trace(go.Scatter(x=[t90_h,t90_h], y=[T_amb-5, T_eq+10], mode='lines', name=f't₉₀={hm(t90_h)}', line=dict(color='green', dash='dot')))
+            fig.add_trace(go.Scatter(x=[t90_h], y=[T90_v], mode='markers', marker=dict(color='green', size=9), showlegend=False))
+            fig.add_vrect(x0=t110_h, x1=t90_h, fillcolor="green", opacity=0.07, layer="below", line_width=0, annotation_text=S["cw_lbl"], annotation_position="top left")
 
-        fig.update_layout(
-            title=S["pl_title"], xaxis_title=S["pl_x"], yaxis_title=S["pl_y"],
-            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
-            hovermode="x unified", template="plotly_white", height=520)
+        fig.update_layout(title=S["pl_title"], xaxis_title=S["pl_x"], yaxis_title=S["pl_y"], legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0), hovermode="x unified", template="plotly_white", height=520)
         st.plotly_chart(fig, use_container_width=True)
 
-        # Store results for PDF export
         st.session_state['th_data'] = {
             'vol_m3': vol_m3, 'T_amb': T_amb, 'mu_nom_cP': mu_nom_cP,
             't_sim_h': t_sim_h, 'P_heat': P_heat, 'Q_heat': Q_heat,
@@ -1469,16 +1268,12 @@ with tab_th:
             'Tnom': Tnom, 'T90': T90, 'T110': T110, 'T_eq': T_eq,
             't110_h': t110_h, 'cwin_h': cwin_h,
             'E_heat': E_heat, 'E_cal': E_cal, 'E_total': E_total,
-            # raw arrays for PDF chart (no kaleido needed)
             't_hp': t_hp / 3600.0, 'T_hp': T_hp,
             'tc_h': tc / 3600.0,   'Tf_c': Tf_c,
             't90_h': t90_h, 'T90_v': T90_v if t90_h is not None else None,
             'T110_v': T110_v,
         }
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TAB 4 – MANUAL
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_mn:
     if lang == "pt":
