@@ -98,9 +98,6 @@ TR = {
         "fittings_help": "**Conexões e válvulas de bloqueio** *(perdas localizadas — método K)*\n\n| Componente | K |\n|---|---|\n| Curva 90° | 0,30 |\n| Curva 45° | 0,20 |\n| Tê | 0,50 |\n| Válvula esfera | 0,10 |\n| V. borboleta bloqueio | 0,50 |",
         "hy_global_note": "ℹ️ Diâmetro, comprimento, rugosidade e desnível são definidos nas **Configurações Globais** (barra lateral). Altere lá para refletir aqui.",
         "hy_fittings": "Conexões e Válvulas de Bloqueio",
-        "kv_mode_lbl": "Modo da válvula de controle:",
-        "kv_mode_single": "Kv único / linear",
-        "kv_mode_curve": "Curva Kv × abertura (3 pontos)",
         "kv_curve_help": "Insira 3 pontos da curva do fabricante: abertura (%) e Kv correspondente. A interpolação é log-linear, adequada para válvulas de equal-percentage.",
         "kv_op_j": "Abertura (%)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
@@ -108,8 +105,6 @@ TR = {
         "n_ctrl_help": "Cada válvula de controle possui Kv e abertura independentes. Em loop fechado, válvulas em série somam as perdas de pressão.",
         "ctrl_series_note": "ℹ️ As válvulas de controle estão em **paralelo** no loop — os valores de Kv de cada linha são somados.",
         "ctrl_v": "Válvula de Controle",
-        "kv_lbl": "Kv da válvula de controle (m³/h·bar⁰·⁵) — IEC 60534:",
-        "kv_help": "0 = sem válvula de controle.",
         "op_lbl": "Abertura da válvula (%)",
         "op_help": "Deslize para ver o gráfico atualizar em tempo real.",
         "fl_hy": "Fluido (para hidráulica)",
@@ -263,9 +258,6 @@ TR = {
         "fittings_help": "**Fittings & isolation valves** *(minor losses — K method)*\n\n| Component | K |\n|---|---|\n| 90° elbow | 0.30 |\n| 45° elbow | 0.20 |\n| Tee | 0.50 |\n| Ball valve | 0.10 |\n| Isolation butterfly | 0.50 |",
         "hy_global_note": "ℹ️ Inner diameter, length, roughness, and static head are set in **Global Parameters** (sidebar). Edit there to reflect here.",
         "hy_fittings": "Fittings & Isolation Valves",
-        "kv_mode_lbl": "Control valve mode:",
-        "kv_mode_single": "Single Kv / linear",
-        "kv_mode_curve": "Kv × opening curve (3 points)",
         "kv_curve_help": "Enter 3 points from the manufacturer's curve: opening (%) and corresponding Kv. Log-linear interpolation is used, appropriate for equal-percentage valves.",
         "kv_op_j": "Opening (%)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
@@ -273,8 +265,6 @@ TR = {
         "n_ctrl_help": "Each control valve has independent Kv and opening. In a closed loop, series valves add their pressure drops directly.",
         "ctrl_series_note": "ℹ️ Control valves are in **parallel** in the loop — their effective Kv values are summed.",
         "ctrl_v": "Control Valve",
-        "kv_lbl": "Control valve Kv (m³/h·bar⁰·⁵) — IEC 60534:",
-        "kv_help": "0 = no control valve.",
         "op_lbl": "Valve opening (%)",
         "op_help": "Slide to see the chart update in real-time.",
         "fl_hy": "Fluid (for hydraulics)",
@@ -866,33 +856,29 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     for i in range(int(n_ctrl)):
         st.markdown(f"**{S['ctrl_v']} {i+1}**")
-        cv_mode = st.radio(S["kv_mode_lbl"], [S["kv_mode_single"], S["kv_mode_curve"]], key=f"cvmode_{i}", horizontal=True)
+        st.caption(S["kv_curve_help"])
+        default_cv_pts = [(25, 45), (50, 394), (100, 913)]
+        cv_pts_op = []; cv_pts_kv = []
+        cc = st.columns(3)
+        for j, (dop, dkv) in enumerate(default_cv_pts):
+            with cc[j]:
+                st.markdown(f"**{S['pc_pt']} {j+1}**")
+                op_j = st.number_input(S["kv_op_j"], value=float(dop), min_value=0.0, max_value=100.0, key=f"cvop_{i}_{j}")
+                kv_j = st.number_input(S["kv_kv_j"], value=float(dkv), min_value=0.0, key=f"cvkv_{i}_{j}")
+                cv_pts_op.append(op_j); cv_pts_kv.append(kv_j)
 
-        if cv_mode == S["kv_mode_single"]:
-            kv_i = st.number_input(S["kv_lbl"], min_value=0.0, value=870.0, key=f"kv_{i}", help=S["kv_help"])
-            fcv_curve_data.append(("linear", kv_i))
-
-        else:
-            st.caption(S["kv_curve_help"])
-            default_cv_pts = [(25, 45), (50, 394), (100, 913)]
-            cv_pts_op = []; cv_pts_kv = []
-            cc = st.columns(3)
-            for j, (dop, dkv) in enumerate(default_cv_pts):
-                with cc[j]:
-                    st.markdown(f"**{S['pc_pt']} {j+1}**")
-                    op_j = st.number_input(S["kv_op_j"], value=float(dop), min_value=0.0, max_value=100.0, key=f"cvop_{i}_{j}")
-                    kv_j = st.number_input(S["kv_kv_j"], value=float(dkv), min_value=0.0, key=f"cvkv_{i}_{j}")
-                    cv_pts_op.append(op_j); cv_pts_kv.append(kv_j)
-
-            import numpy as _np
-            from scipy.interpolate import interp1d as _interp1d
-            _ops = _np.array(cv_pts_op, dtype=float)
-            _kvs = _np.array(cv_pts_kv, dtype=float)
-            sort_i = _np.argsort(_ops)
-            _ops, _kvs = _ops[sort_i], _kvs[sort_i]
-            _log_kv = _np.log(_kvs)
-            _interp = _interp1d(_ops, _log_kv, kind='linear', fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
-            fcv_curve_data.append(("curve", (_ops, _kvs, _interp)))
+        import numpy as _np
+        from scipy.interpolate import interp1d as _interp1d
+        _ops = _np.array(cv_pts_op, dtype=float)
+        _kvs = _np.array(cv_pts_kv, dtype=float)
+        sort_i = _np.argsort(_ops)
+        _ops, _kvs = _ops[sort_i], _kvs[sort_i]
+        
+        _kvs_safe = _np.where(_kvs <= 0, 1e-5, _kvs) # Previne log(0) se usuário inserir 0
+        _log_kv = _np.log(_kvs_safe)
+        
+        _interp = _interp1d(_ops, _log_kv, kind='linear', fill_value=(_log_kv[0], _log_kv[-1]), bounds_error=False)
+        fcv_curve_data.append((_ops, _kvs, _interp))
 
     st.subheader(S["fl_hy"])
     fc1, fc2, fc3 = st.columns(3)
@@ -948,13 +934,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     def resolve_ctrl_valves(op_pct):
         cv_resolved = []
-        for idx, (mode, data) in enumerate(fcv_curve_data):
-            if mode == "linear":
-                cv_resolved.append((data, op_pct))
-            else:
-                _ops_c, _kvs_c, _interp_c = data
-                kv_resolved = float(_np2.exp(_interp_c(op_pct)))
-                cv_resolved.append((kv_resolved, 100)) # Kv já foi escalonado pela interpolação
+        for data in fcv_curve_data:
+            _ops_c, _kvs_c, _interp_c = data
+            kv_resolved = float(_np2.exp(_interp_c(op_pct)))
+            cv_resolved.append((kv_resolved, 100)) # Kv já escalonado pela interpolação
         return cv_resolved
 
     def sys_curve(Q_arr, op_pct):
@@ -1111,20 +1094,20 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             st.markdown(f"**{S['pump_fmax'].format(f=pc_fmax)}**")
             st.dataframe(make_op_df(ops_fmax), use_container_width=True, hide_index=True)
 
-    def ops_as_list(ops_tuple):
-        o20_, ousr_, o100_ = ops_tuple
-        return [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]
+        def ops_as_list(ops_tuple):
+            o20_, ousr_, o100_ = ops_tuple
+            return [("20%", o20_), (f"{user_op}%", ousr_), ("100%", o100_)]
 
-    st.session_state['hy_data'] = {
-        'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
-        'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
-        'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
-        'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
-        'user_op': user_op, 'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
-        'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
-        'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
-        'rug_mm': rug_mm, 'dz_glob': dz_glob,
-    }
+        st.session_state['hy_data'] = {
+            'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
+            'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
+            'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
+            'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys20': H_sys20, 'H_sys100': H_sys100, 'H_sys_usr': H_sys_usr,
+            'user_op': user_op, 'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
+            'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
+            'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
+            'rug_mm': rug_mm, 'dz_glob': dz_glob,
+        }
 
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_th:
