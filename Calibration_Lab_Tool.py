@@ -215,6 +215,10 @@ TR = {
         "ro_beta": "Razão Beta (β): {beta:.3f}",
         "ro_dp_calc": "ΔP Permanente Calculado: {dp:.2f} bar",
         "ro_kv_res": "Kv equivalente do orifício: {kv:.1f} m³/h·bar⁰·⁵",
+        "pc_poles": "Número de polos do motor:",
+        "pc_poles_help": "2 polos → 3600 RPM | 4 polos → 1800 RPM | 6 polos → 1200 RPM",
+        "pc_freq_help": "Frequência em que o fabricante mediu os 5 pontos. Geralmente 60 Hz.",  # <--- ADD THIS LINE
+        "pc_freq": "Frequência nominal fornecida (Hz):",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -359,6 +363,10 @@ TR = {
         "ro_beta": "Beta Ratio (β): {beta:.3f}",
         "ro_dp_calc": "Calculated Permanent ΔP: {dp:.2f} bar",
         "ro_kv_res": "Equivalent orifice Kv: {kv:.1f} m³/h·bar⁰·⁵",
+        "pc_poles": "Motor number of poles:",
+        "pc_poles_help": "2 poles → 3600 RPM | 4 poles → 1800 RPM | 6 poles → 1200 RPM",
+        "pc_freq_help": "Frequency at which the manufacturer measured the 5 points. Usually 60 Hz.", # <--- ADD THIS LINE
+        "pc_freq": "Nominal curve frequency (Hz):",
     },
 }
 
