@@ -23,7 +23,7 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SAVE / LOAD CONFIGURATIONS LOGIC
+# SAVE / LOAD CONFIGURATIONS LOGIC (ATUALIZADO COM CALLBACKS)
 # ─────────────────────────────────────────────────────────────────────────────
 CONFIG_FILE = "lab_configs.json"
 
@@ -36,23 +36,29 @@ def get_saved_configs():
             return {}
     return {}
 
-def save_config(name):
+def save_config_callback():
+    name = st.session_state.get("new_cfg_name")
+    if not name: return
     configs = get_saved_configs()
     data_to_save = {}
     for k, v in st.session_state.items():
-        # Avoid saving internal dataframes, plot data, or buttons states
-        if k not in ["th_data", "hy_data", "hy_sim_active"] and not k.endswith("btn"):
+        # Evita salvar arrays pesados, dados plotados, botões ou chaves de controle de UI
+        if k not in ["th_data", "hy_data", "hy_sim_active", "new_cfg_name", "sel_cfg_name"] and not k.endswith("btn"):
             if isinstance(v, (int, float, str, bool, list, dict)):
                 data_to_save[k] = v
     configs[name] = data_to_save
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(configs, f, indent=4)
 
-def load_config(name):
+def load_config_callback():
+    name = st.session_state.get("sel_cfg_name")
+    if not name: return
     configs = get_saved_configs()
     if name in configs:
         for k, v in configs[name].items():
-            st.session_state[k] = v
+            # Não sobrescreve os próprios inputs de seleção
+            if k not in ["new_cfg_name", "sel_cfg_name"]:
+                st.session_state[k] = v
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRANSLATIONS
@@ -769,26 +775,21 @@ with st.sidebar:
                              if lang=="pt" else
                              "Run at least one simulation to enable the report."))
 
-    # ── SAVE/LOAD WIDGETS ──
+    # ── SAVE/LOAD WIDGETS (AGORA COM CALLBACKS) ──
     st.divider()
     st.subheader(S["cfg_hdr"])
     cfg_names = list(get_saved_configs().keys())
 
     with st.expander(S["cfg_save"]):
-        new_name = st.text_input(S["cfg_name"], key="new_cfg_name")
-        if st.button(S["cfg_save"], key="save_cfg_btn"):
-            if new_name:
-                save_config(new_name)
-                st.success(S["cfg_succ"])
-                st.rerun()
+        st.text_input(S["cfg_name"], key="new_cfg_name")
+        if st.button(S["cfg_save"], key="save_cfg_btn", on_click=save_config_callback):
+            st.success(S["cfg_succ"])
 
     with st.expander(S["cfg_load"]):
         if cfg_names:
-            sel_cfg = st.selectbox(S["cfg_sel"], cfg_names, key="sel_cfg_name")
-            if st.button(S["cfg_load"], key="load_cfg_btn"):
-                load_config(sel_cfg)
+            st.selectbox(S["cfg_sel"], cfg_names, key="sel_cfg_name")
+            if st.button(S["cfg_load"], key="load_cfg_btn", on_click=load_config_callback):
                 st.success(S["cfg_lsucc"])
-                st.rerun()
         else:
             st.info(S["cfg_empty"])
 
