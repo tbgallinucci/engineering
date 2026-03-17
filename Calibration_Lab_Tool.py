@@ -23,11 +23,28 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SAVE / LOAD CONFIGURATIONS LOGIC
+# SAVE / LOAD CONFIGURATIONS LOGIC (GITHUB INTEGRATED)
 # ─────────────────────────────────────────────────────────────────────────────
+from github import Github
+import json
+import os
+
 CONFIG_FILE = "lab_configs.json"
 
 def get_saved_configs():
+    # Se estiver rodando na nuvem e o secret existir, puxa do GitHub
+    if "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets:
+        try:
+            g = Github(st.secrets["GITHUB_TOKEN"])
+            repo = g.get_repo(st.secrets["GITHUB_REPO"])
+            file_content = repo.get_contents(CONFIG_FILE)
+            decoded_content = file_content.decoded_content.decode('utf-8')
+            return json.loads(decoded_content)
+        except Exception as e:
+            st.error(f"Erro ao carregar do GitHub: {e}")
+            return {}
+            
+    # Fallback para leitura local (se rodando no seu PC)
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -51,8 +68,28 @@ def save_config_callback():
             data_to_save[k] = v
             
     configs[name] = data_to_save
+    json_string = json.dumps(configs, indent=4)
+
+    # Lógica para salvar no GitHub
+    if "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets:
+        try:
+            g = Github(st.secrets["GITHUB_TOKEN"])
+            repo = g.get_repo(st.secrets["GITHUB_REPO"])
+            
+            try:
+                # Tenta pegar o arquivo existente para pegar o SHA (necessário para atualizar)
+                contents = repo.get_contents(CONFIG_FILE)
+                repo.update_file(contents.path, f"Atualizando config '{name}' via App", json_string, contents.sha)
+            except:
+                # Se o arquivo não existe no repo ainda, cria um novo
+                repo.create_file(CONFIG_FILE, f"Criando config '{name}' via App", json_string)
+                
+        except Exception as e:
+            st.error(f"Erro ao salvar no GitHub: {e}")
+            
+    # Salva localmente de qualquer forma
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(configs, f, indent=4)
+        f.write(json_string)
 
 def load_config_callback():
     name = st.session_state.get("sel_cfg_name")
