@@ -14,6 +14,7 @@ import math
 import json
 import os
 from datetime import datetime
+from github import Github
 
 st.set_page_config(
     page_title="Calibration Lab Sizing Tool",
@@ -21,6 +22,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SAVE / LOAD CONFIGURATIONS LOGIC (GITHUB INTEGRATED)
+# ─────────────────────────────────────────────────────────────────────────────
+CONFIG_FILE = "lab_configs.json"
 
 def get_saved_configs():
     # Se estiver rodando na nuvem e o secret existir, tenta puxar do GitHub
@@ -32,15 +38,14 @@ def get_saved_configs():
             decoded_content = file_content.decoded_content.decode('utf-8')
             return json.loads(decoded_content)
         except Exception as e:
-            # Se o erro for 404, o arquivo só não foi criado ainda (primeiro uso). Retorna vazio silenciosamente.
+            # Se o erro for 404, o arquivo só não foi criado ainda (primeiro uso). Retorna vazio.
             if "404" in str(e) or "Not Found" in str(e):
                 return {}
             else:
-                # Se for erro de Token ou nome de repositório incorreto, avisa o usuário.
                 st.error(f"Erro de configuração do GitHub: {e}")
                 return {}
             
-    # Fallback para leitura local
+    # Fallback para leitura local (se rodando no seu PC)
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -48,6 +53,60 @@ def get_saved_configs():
         except Exception:
             return {}
     return {}
+
+def save_config_callback():
+    name = st.session_state.get("new_cfg_name")
+    if not name: return
+    configs = get_saved_configs()
+    data_to_save = {}
+    for k, v in st.session_state.items():
+        if k in ["th_data", "hy_data", "hy_sim_active", "new_cfg_name", "sel_cfg_name"]:
+            continue
+        if "btn" in k.lower():
+            continue
+            
+        if isinstance(v, (int, float, str, bool, list, dict)):
+            data_to_save[k] = v
+            
+    configs[name] = data_to_save
+    json_string = json.dumps(configs, indent=4)
+
+    # Lógica para salvar no GitHub
+    if "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets:
+        try:
+            g = Github(st.secrets["GITHUB_TOKEN"])
+            repo = g.get_repo(st.secrets["GITHUB_REPO"])
+            
+            try:
+                # Tenta pegar o arquivo existente para atualizar
+                contents = repo.get_contents(CONFIG_FILE)
+                repo.update_file(contents.path, f"Atualizando config '{name}' via App", json_string, contents.sha)
+            except Exception as e:
+                if "404" in str(e) or "Not Found" in str(e):
+                    # Se não existe, cria um novo
+                    repo.create_file(CONFIG_FILE, f"Criando config '{name}' via App", json_string)
+                else:
+                    st.error(f"Erro ao atualizar no GitHub: {e}")
+                
+        except Exception as e:
+            st.error(f"Erro ao acessar repositório no GitHub: {e}")
+            
+    # Salva localmente de qualquer forma como fallback
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        f.write(json_string)
+
+def load_config_callback():
+    name = st.session_state.get("sel_cfg_name")
+    if not name: return
+    configs = get_saved_configs()
+    if name in configs:
+        for k, v in configs[name].items():
+            if k in ["new_cfg_name", "sel_cfg_name"]:
+                continue
+            if "btn" in k.lower():
+                continue
+                
+            st.session_state[k] = v
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRANSLATIONS
@@ -143,6 +202,7 @@ TR = {
         "pump_curve_help": "Insira 5 pontos Q×H da curva do fabricante na rotação nominal.",
         "pc_poles": "Número de polos do motor:",
         "pc_poles_help": "2 polos → 3600 RPM | 4 polos → 1800 RPM | 6 polos → 1200 RPM",
+        "pc_freq_help": "Frequência em que o fabricante mediu os 5 pontos. Geralmente 60 Hz.",
         "pc_freq": "Frequência nominal fornecida (Hz):",
         "pc_fmin": "Frequência mínima VFD (Hz):",
         "pc_fmax": "Frequência máxima VFD (Hz):",
@@ -172,7 +232,7 @@ TR = {
         "seg_dn":  "DN int. (m)",
         "seg_L":   "L (m)",
         "seg_c90": "Curvas 90°",
-        "seg_tee": "Tês",
+        "seg_tee": "Tees",
         "seg_ve":  "V.Esfera",
         "seg_red": "Reduções",
         "seg_dred":"D montante (m)",
@@ -197,10 +257,6 @@ TR = {
         "ro_beta": "Razão Beta (β): {beta:.3f}",
         "ro_dp_calc": "ΔP Permanente Calculado: {dp:.2f} bar",
         "ro_kv_res": "Kv equivalente do orifício: {kv:.1f} m³/h·bar⁰·⁵",
-        "pc_poles": "Número de polos do motor:",
-        "pc_poles_help": "2 polos → 3600 RPM | 4 polos → 1800 RPM | 6 polos → 1200 RPM",
-        "pc_freq_help": "Frequência em que o fabricante mediu os 5 pontos. Geralmente 60 Hz.",  # <--- ADD THIS LINE
-        "pc_freq": "Frequência nominal fornecida (Hz):",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -291,6 +347,7 @@ TR = {
         "pump_curve_help": "Enter 5 Q×H points from the manufacturer curve at nominal speed.",
         "pc_poles": "Motor number of poles:",
         "pc_poles_help": "2 poles → 3600 RPM | 4 poles → 1800 RPM | 6 poles → 1200 RPM",
+        "pc_freq_help": "Frequency at which the manufacturer measured the 5 points. Usually 60 Hz.",
         "pc_freq": "Nominal curve frequency (Hz):",
         "pc_fmin": "VFD minimum frequency (Hz):",
         "pc_fmax": "VFD maximum frequency (Hz):",
@@ -345,10 +402,6 @@ TR = {
         "ro_beta": "Beta Ratio (β): {beta:.3f}",
         "ro_dp_calc": "Calculated Permanent ΔP: {dp:.2f} bar",
         "ro_kv_res": "Equivalent orifice Kv: {kv:.1f} m³/h·bar⁰·⁵",
-        "pc_poles": "Motor number of poles:",
-        "pc_poles_help": "2 poles → 3600 RPM | 4 poles → 1800 RPM | 6 poles → 1200 RPM",
-        "pc_freq_help": "Frequency at which the manufacturer measured the 5 points. Usually 60 Hz.", # <--- ADD THIS LINE
-        "pc_freq": "Nominal curve frequency (Hz):",
     },
 }
 
