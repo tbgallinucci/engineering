@@ -29,7 +29,6 @@ st.set_page_config(
 CONFIG_FILE = "lab_configs.json"
 
 def get_saved_configs():
-    # Se estiver rodando na nuvem e o secret existir, tenta puxar do GitHub
     if "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets:
         try:
             g = Github(st.secrets["GITHUB_TOKEN"])
@@ -38,14 +37,12 @@ def get_saved_configs():
             decoded_content = file_content.decoded_content.decode('utf-8')
             return json.loads(decoded_content)
         except Exception as e:
-            # Se o erro for 404, o arquivo só não foi criado ainda (primeiro uso). Retorna vazio.
             if "404" in str(e) or "Not Found" in str(e):
                 return {}
             else:
                 st.error(f"Erro de configuração do GitHub: {e}")
                 return {}
             
-    # Fallback para leitura local (se rodando no seu PC)
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -71,19 +68,16 @@ def save_config_callback():
     configs[name] = data_to_save
     json_string = json.dumps(configs, indent=4)
 
-    # Lógica para salvar no GitHub
     if "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets:
         try:
             g = Github(st.secrets["GITHUB_TOKEN"])
             repo = g.get_repo(st.secrets["GITHUB_REPO"])
             
             try:
-                # Tenta pegar o arquivo existente para atualizar
                 contents = repo.get_contents(CONFIG_FILE)
                 repo.update_file(contents.path, f"Atualizando config '{name}' via App", json_string, contents.sha)
             except Exception as e:
                 if "404" in str(e) or "Not Found" in str(e):
-                    # Se não existe, cria um novo
                     repo.create_file(CONFIG_FILE, f"Criando config '{name}' via App", json_string)
                 else:
                     st.error(f"Erro ao atualizar no GitHub: {e}")
@@ -91,7 +85,6 @@ def save_config_callback():
         except Exception as e:
             st.error(f"Erro ao acessar repositório no GitHub: {e}")
             
-    # Salva localmente de qualquer forma como fallback
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         f.write(json_string)
 
@@ -182,7 +175,7 @@ TR = {
         "hy_tee": "Qtd. tês:",
         "hy_ve": "Qtd. válvulas esfera:",
         "hy_vb": "Qtd. válvulas borboleta de bloqueio (K=0,5):",
-        "hy_vb_help": "Válvulas borboleta normalmente abertas usadas para isolamento de ramais (K fixo = 0,5). NÃO inclua aqui as válvulas de controle — elas são configuradas abaixo com Kv variável.",
+        "hy_vb_help": "Válvulas borboleta normalmente abertas usadas para isolamento de ramais (K fixo = 0,5). NÃO inclua aqui as válvulas de controle.",
         "fittings_help": "**Conexões e válvulas de bloqueio** *(perdas localizadas — método K)*\n\n| Componente | K |\n|---|---|\n| Curva 90° | 0,30 |\n| Curva 45° | 0,20 |\n| Tê | 0,50 |\n| Válvula esfera | 0,10 |\n| V. borboleta bloqueio | 0,50 |",
         "hy_global_note": "ℹ️ Diâmetro, comprimento, rugosidade e desnível são definidos nas **Configurações Globais** (barra lateral). Altere lá para refletir aqui.",
         "hy_fittings": "Conexões e Válvulas de Bloqueio",
@@ -232,7 +225,7 @@ TR = {
         "seg_dn":  "DN int. (m)",
         "seg_L":   "L (m)",
         "seg_c90": "Curvas 90°",
-        "seg_tee": "Tees",
+        "seg_tee": "Tês",
         "seg_ve":  "V.Esfera",
         "seg_red": "Reduções",
         "seg_dred":"D montante (m)",
@@ -257,6 +250,14 @@ TR = {
         "ro_beta": "Razão Beta (β): {beta:.3f}",
         "ro_dp_calc": "ΔP Permanente Calculado: {dp:.2f} bar",
         "ro_kv_res": "Kv equivalente do orifício: {kv:.1f} m³/h·bar⁰·⁵",
+        "csv_export_btn": "⬇️ Baixar Pontos de Operação (CSV)",
+        "csv_freq": "Freq_Bomba_Hz",
+        "csv_op": "Abertura_Valvula_%",
+        "csv_q": "Vazao_m3h",
+        "csv_h": "Altura_Manometrica_m",
+        "csv_pin": "P_in_bar",
+        "csv_pout": "P_out_bar",
+        "csv_dp": "dP_bar",
     },
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
@@ -402,6 +403,14 @@ TR = {
         "ro_beta": "Beta Ratio (β): {beta:.3f}",
         "ro_dp_calc": "Calculated Permanent ΔP: {dp:.2f} bar",
         "ro_kv_res": "Equivalent orifice Kv: {kv:.1f} m³/h·bar⁰·⁵",
+        "csv_export_btn": "⬇️ Download Operating Points (CSV)",
+        "csv_freq": "Pump_Freq_Hz",
+        "csv_op": "Valve_Opening_%",
+        "csv_q": "Flow_Rate_m3h",
+        "csv_h": "Pump_Head_m",
+        "csv_pin": "P_in_bar",
+        "csv_pout": "P_out_bar",
+        "csv_dp": "dP_bar",
     },
 }
 
@@ -488,9 +497,7 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
                  seg['ve']  * 0.1 + K_red)
         Hl_total += K_seg * V**2 / (2 * 9.81)
 
-    # Restriction Orifice permanent loss dynamically added to Base Pipe
     if kv_ro and kv_ro > 0:
-        # Conversion: dP(bar) to Head(m) = dP * 100000 / (rho * g)
         H_ro = (Q / kv_ro)**2 * (100.0 / 9.81)
         Hl_total += H_ro
 
@@ -509,6 +516,52 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
 
 def hm(h):
     return f"{int(h)}h {int((h-int(h))*60)}min"
+
+def generate_ops_csv(hy_data, S):
+    from scipy.interpolate import CubicSpline
+    import pandas as pd
+    
+    Qr = hy_data['Qr']
+    cs_sys_base = CubicSpline(Qr, hy_data['H_sys_base'], extrapolate=True)
+    rho = hy_data['hy_rho']
+    
+    freqs = [
+        (hy_data['pc_fmin'], hy_data['ops_fmin_pts']),
+        (hy_data['pc_freq0'], hy_data['ops_fnom_pts']),
+        (hy_data['pc_fmax'], hy_data['ops_fmax_pts'])
+    ]
+    
+    rows = []
+    for freq, ops in freqs:
+        items = [
+            (hy_data['op_ref1_val'], ops[0]),
+            (hy_data['user_op'], ops[1]),
+            (hy_data['op_ref3_val'], ops[2])
+        ]
+        seen_ops = set()
+        for op_val, (q, h) in items:
+            if q is not None and op_val not in seen_ops:
+                seen_ops.add(op_val)
+                h_base = float(cs_sys_base(q))
+                
+                p_in = h * rho * 9.81 / 100000.0
+                p_out = h_base * rho * 9.81 / 100000.0
+                dp = p_in - p_out
+                
+                rows.append({
+                    S["csv_freq"]: freq,
+                    S["csv_op"]: op_val,
+                    S["csv_q"]: round(q, 2),
+                    S["csv_h"]: round(h, 2),
+                    S["csv_pin"]: round(p_in, 2),
+                    S["csv_pout"]: round(p_out, 2),
+                    S["csv_dp"]: round(dp, 2)
+                })
+                
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values(by=[S["csv_freq"], S["csv_q"]])
+    return df.to_csv(index=False).encode('utf-8')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -844,11 +897,12 @@ with st.sidebar:
     h_ext    = st.number_input(S["hout_lbl"], min_value=1.0, value=10.0, help=S["hout_help"], key="h_ext")
 
     st.divider()
-    st.subheader("📄 " + ("Exportar Relatório" if lang=="pt" else "Export Report"))
+    st.subheader("📄 " + ("Exportar Relatórios" if lang=="pt" else "Export Reports"))
     pdf_ready = ('th_data' in st.session_state or 'hy_data' in st.session_state)
+    
     if pdf_ready:
-        if st.button("⬇️ " + ("Gerar e Baixar PDF" if lang=="pt" else "Generate & Download PDF"),
-                     type="primary", key="btn_pdf"):
+        if st.button("⬇️ " + ("Gerar PDF (Memorial)" if lang=="pt" else "Generate PDF (Memo)"),
+                     type="primary", key="btn_pdf", use_container_width=True):
             global_params = {
                 'fluid': fluid_choice, 'd_inner': d_inner, 'D_outer': D_outer,
                 'L_pipe': L_pipe, 'rug_mm': rug_mm, 'dz_glob': dz_glob,
@@ -862,18 +916,33 @@ with st.sidebar:
                     global_params,
                 )
                 st.download_button(
-                    label="📥 " + ("Clique para baixar" if lang=="pt" else "Click to download"),
+                    label="📥 " + ("Baixar Arquivo PDF" if lang=="pt" else "Download PDF File"),
                     data=pdf_bytes,
                     file_name=f"Calibration_Lab_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
                     mime="application/pdf",
                     key="dl_pdf",
+                    use_container_width=True
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar PDF: {e}")
+                
+        if 'hy_data' in st.session_state:
+            try:
+                csv_bytes = generate_ops_csv(st.session_state['hy_data'], S)
+                st.download_button(
+                    label=S["csv_export_btn"],
+                    data=csv_bytes,
+                    file_name=f"Operating_Points_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    key="dl_csv",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Erro ao gerar CSV: {e}")
     else:
-        st.caption("⚠️ " + ("Execute ao menos uma simulação para habilitar o relatório."
+        st.caption("⚠️ " + ("Execute ao menos uma simulação para habilitar os relatórios."
                              if lang=="pt" else
-                             "Run at least one simulation to enable the report."))
+                             "Run at least one simulation to enable reports."))
 
     # ── SAVE/LOAD WIDGETS (COM CALLBACKS) ──
     st.divider()
@@ -973,7 +1042,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     fcv_curve_data = []
 
-    # Hardcoded single control valve logic
     st.caption(S["kv_curve_help"])
     default_cv_pts = [(25, 45), (50, 394), (100, 913)]
     cv_pts_op = []; cv_pts_kv = []
@@ -1005,7 +1073,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     hy_mu_hot = hy_mu_cP / 1000.0
     hy_qmax   = fc3.number_input(S["hy_qmax"], min_value=50.0, value=900.0, help=S["hy_qmax_h"], key="hy_qmax")
 
-    # ── Restriction Orifice (ISO 5167 Physics) ──
     st.subheader(S["ro_hdr"])
     st.info(S["ro_help"])
     ro_active = st.checkbox(S["ro_enable"], value=False, key="ro_active")
@@ -1022,19 +1089,12 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             ro_beta = 0.5
             ro_dp_des = 0
         else:
-            # ISO 5167 Simplification for permanent pressure loss
             ro_beta = ro_d / ro_D
-            C_d = 0.61  # Typical discharge coefficient
+            C_d = 0.61
             A_0 = math.pi * (ro_d**2) / 4.0
-            Q_s = ro_q_des / 3600.0  # m³/s
-            
-            # Differential Pressure (Pa) across the orifice
+            Q_s = ro_q_des / 3600.0
             dp_pa = (Q_s**2 * hy_rho * (1 - ro_beta**4)) / (2 * (C_d**2) * (A_0**2))
-            
-            # Permanent Pressure Loss (Pa)
             ppl_pa = dp_pa * (1 - ro_beta**1.9)
-            
-            # Convert to bar
             ro_dp_des = ppl_pa / 100000.0
             
             st.markdown(f"**{S['ro_beta'].format(beta=ro_beta)}**")
@@ -1064,9 +1124,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             h_i = st.number_input(S["pc_H_lbl"].format(i+1), value=float(dh), min_value=0.0, key=f"pcH{i}")
             pump_pts.append((q_i, h_i))
 
-    # =========================================================================
-    # LÓGICA DE SIMULAÇÃO REATIVA (SEM BOTÃO)
-    # =========================================================================
     st.markdown("---")
     st.subheader(S["sim_hdr"])
     
@@ -1078,7 +1135,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         hide_dp_lines = st.checkbox(S["hide_dp"], value=False, key="hide_dp_lines")
         show_dp = not hide_dp_lines
 
-    # Slider interativo posicionado imediatamente acima do gráfico
     user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
 
     from scipy.interpolate import CubicSpline
@@ -1087,7 +1143,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     Qr = np.linspace(0, hy_qmax, 400)
     
-    # ── Determinar Ponto 1 e Ponto 3 a partir da entrada da válvula ──
     _ops_primeira, _, _ = fcv_curve_data[0]
     op_ref1 = float(_ops_primeira[0])
     op_ref3 = float(_ops_primeira[-1])
@@ -1096,7 +1151,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     lbl_ref3 = f"{op_ref3:g}%"
     lbl_usr  = f"{user_op:g}%"
 
-    # ── System curves at 3 valve openings + Base Pipe + RO ─────────────────────
     def sys_curve_base(Q_arr, ro_kv_val):
         H = []
         for Q in Q_arr:
@@ -1109,7 +1163,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         for data in fcv_curve_data:
             _ops_c, _kvs_c, _interp_c = data
             kv_resolved = float(_np2.exp(_interp_c(op_pct)))
-            cv_resolved.append((kv_resolved, 100)) # Kv já escalonado pela interpolação
+            cv_resolved.append((kv_resolved, 100))
         return cv_resolved
 
     def sys_curve(Q_arr, op_pct, ro_kv_val):
@@ -1125,7 +1179,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     H_sys_ref3 = sys_curve(Qr, op_ref3, kv_ro_active)
     H_sys_usr  = sys_curve(Qr, user_op, kv_ro_active)
 
-    # ── Pump curves via affinity laws ──────────────────────────────────────
     Qp = np.array([p[0] for p in pump_pts])
     Hp = np.array([p[1] for p in pump_pts])
     sort_idx = np.argsort(Qp)
@@ -1165,9 +1218,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     op_ref3_nom = find_op(cs_nom, Qmax_nom, H_sys_ref3)
     op_usr      = find_op(cs_nom, Qmax_nom, H_sys_usr)
 
-    # ── Plot ──────────────────────────────────────────────────────────────
     fh = go.Figure()
-
     fh.add_trace(go.Scatter(x=Qr, y=H_sys_base, mode='lines',
         name=S["sys_base"], line=dict(color='gray', width=2, dash='dash')))
 
@@ -1177,7 +1228,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         fh.add_trace(go.Scatter(x=Qr, y=H_sys_ref3, mode='lines',
             name=f'Sistema {lbl_ref3}' if lang == 'pt' else f'System {lbl_ref3}', line=dict(color='royalblue', width=2.5)))
     
-    # Always plot the user curve unless it perfectly overlaps and references are shown
     if lbl_usr not in (lbl_ref1, lbl_ref3) or not show_ref:
         fh.add_trace(go.Scatter(x=Qr, y=H_sys_usr, mode='lines',
             name=S["sys_user"] + f" ({lbl_usr})",
@@ -1204,7 +1254,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
         sym, freq_val = op_speed_symbols[speed_key]
         
-        # Filter points to plot based on the toggle
         items_to_plot = [(lbl_usr, ops_tuple[1])]
         if show_ref:
             items_to_plot = [(lbl_ref1, ops_tuple[0])] + items_to_plot + [(lbl_ref3, ops_tuple[2])]
@@ -1219,7 +1268,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                     textfont=dict(color=col, size=11), textposition='middle right', showlegend=False
                 ))
 
-    # Calculate and draw dP Annotations para TODAS as curvas da bomba
     if show_dp:
         cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
         
@@ -1268,7 +1316,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             o1_, ousr_, o3_ = ops_tuple
             rows_ = []
             
-            # Filter rows based on the toggle
             items = [(lbl_usr, ousr_)]
             if show_ref:
                 items = [(lbl_ref1, o1_)] + items + [(lbl_ref3, o3_)]
