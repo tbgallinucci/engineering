@@ -22,17 +22,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SAVE / LOAD CONFIGURATIONS LOGIC (GITHUB INTEGRATED)
-# ─────────────────────────────────────────────────────────────────────────────
-from github import Github
-import json
-import os
-
-CONFIG_FILE = "lab_configs.json"
-
 def get_saved_configs():
-    # Se estiver rodando na nuvem e o secret existir, puxa do GitHub
+    # Se estiver rodando na nuvem e o secret existir, tenta puxar do GitHub
     if "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets:
         try:
             g = Github(st.secrets["GITHUB_TOKEN"])
@@ -41,10 +32,15 @@ def get_saved_configs():
             decoded_content = file_content.decoded_content.decode('utf-8')
             return json.loads(decoded_content)
         except Exception as e:
-            st.error(f"Erro ao carregar do GitHub: {e}")
-            return {}
+            # Se o erro for 404, o arquivo só não foi criado ainda (primeiro uso). Retorna vazio silenciosamente.
+            if "404" in str(e) or "Not Found" in str(e):
+                return {}
+            else:
+                # Se for erro de Token ou nome de repositório incorreto, avisa o usuário.
+                st.error(f"Erro de configuração do GitHub: {e}")
+                return {}
             
-    # Fallback para leitura local (se rodando no seu PC)
+    # Fallback para leitura local
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -52,57 +48,6 @@ def get_saved_configs():
         except Exception:
             return {}
     return {}
-
-def save_config_callback():
-    name = st.session_state.get("new_cfg_name")
-    if not name: return
-    configs = get_saved_configs()
-    data_to_save = {}
-    for k, v in st.session_state.items():
-        if k in ["th_data", "hy_data", "hy_sim_active", "new_cfg_name", "sel_cfg_name"]:
-            continue
-        if "btn" in k.lower():
-            continue
-            
-        if isinstance(v, (int, float, str, bool, list, dict)):
-            data_to_save[k] = v
-            
-    configs[name] = data_to_save
-    json_string = json.dumps(configs, indent=4)
-
-    # Lógica para salvar no GitHub
-    if "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets:
-        try:
-            g = Github(st.secrets["GITHUB_TOKEN"])
-            repo = g.get_repo(st.secrets["GITHUB_REPO"])
-            
-            try:
-                # Tenta pegar o arquivo existente para pegar o SHA (necessário para atualizar)
-                contents = repo.get_contents(CONFIG_FILE)
-                repo.update_file(contents.path, f"Atualizando config '{name}' via App", json_string, contents.sha)
-            except:
-                # Se o arquivo não existe no repo ainda, cria um novo
-                repo.create_file(CONFIG_FILE, f"Criando config '{name}' via App", json_string)
-                
-        except Exception as e:
-            st.error(f"Erro ao salvar no GitHub: {e}")
-            
-    # Salva localmente de qualquer forma
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        f.write(json_string)
-
-def load_config_callback():
-    name = st.session_state.get("sel_cfg_name")
-    if not name: return
-    configs = get_saved_configs()
-    if name in configs:
-        for k, v in configs[name].items():
-            if k in ["new_cfg_name", "sel_cfg_name"]:
-                continue
-            if "btn" in k.lower():
-                continue
-                
-            st.session_state[k] = v
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRANSLATIONS
