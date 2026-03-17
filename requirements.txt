@@ -6,3 +6,4 @@ plotly
 scipy
 reportlab
 kaleido
+PyGithub==2.2.0
