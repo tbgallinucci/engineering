@@ -250,6 +250,10 @@ TR = {
         "ro_beta": "Razão Beta (β): {beta:.3f}",
         "ro_dp_calc": "ΔP Permanente Calculado: {dp:.2f} bar",
         "ro_kv_res": "Kv equivalente do orifício: {kv:.1f} m³/h·bar⁰·⁵",
+        "pcv_hdr": "🎛️ Válvula Reguladora de Contrapressão (PCV)",
+        "pcv_enable": "Habilitar PCV a jusante da FCV",
+        "pcv_set": "Setpoint da PCV (bar):",
+        "pcv_head": "Altura manométrica imposta pela PCV: **{h:.1f} m**",
         "csv_export_btn": "⬇️ Baixar Pontos de Operação (CSV)",
         "csv_freq": "Freq_Bomba_Hz",
         "csv_op": "Abertura_Valvula_%",
@@ -403,6 +407,10 @@ TR = {
         "ro_beta": "Beta Ratio (β): {beta:.3f}",
         "ro_dp_calc": "Calculated Permanent ΔP: {dp:.2f} bar",
         "ro_kv_res": "Equivalent orifice Kv: {kv:.1f} m³/h·bar⁰·⁵",
+        "pcv_hdr": "🎛️ Backpressure Valve (PCV)",
+        "pcv_enable": "Enable Downstream PCV",
+        "pcv_set": "PCV Setpoint (bar):",
+        "pcv_head": "Head imposed by PCV: **{h:.1f} m**",
         "csv_export_btn": "⬇️ Download Operating Points (CSV)",
         "csv_freq": "Pump_Freq_Hz",
         "csv_op": "Valve_Opening_%",
@@ -471,7 +479,7 @@ def colebrook(Re, er):
     alpha = (Re - 2300) / (4000 - 2300)
     return f_lam_2300 + alpha * (f_turb_4000 - f_lam_2300)
 
-def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=None):
+def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=None, pcv_set_bar=None):
     if Q <= 0:
         return 0, 0, 0, dz, 0
 
@@ -486,13 +494,17 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
         Re  = rho_f * V * d / mu_f
         f   = colebrook(Re, rug / d)
         Hd_total += f * (L / d) * V**2 / (2 * 9.81)
+        
         K_red = 0.0
         if seg.get('red_n', 0) > 0 and seg.get('d_up', 0) > d:
+            # Contração súbita
             area_ratio = (d / seg['d_up']) ** 2
             K_red = 0.5 * (1.0 - area_ratio) * seg['red_n']
         elif seg.get('red_n', 0) > 0 and seg.get('d_up', 0) < d:
-            area_ratio = (seg['d_up'] / d) ** 2
-            K_red = (1.0 - area_ratio) ** 2 * seg['red_n']
+            # Expansão súbita (Corrigido referencial de velocidade para o tubo maior d)
+            beta_sq = (seg['d_up'] / d) ** 2
+            K_red = (((1.0 - beta_sq) ** 2) / (beta_sq ** 2)) * seg['red_n']
+            
         K_seg = (seg['c90'] * 0.3 + seg['tee'] * 0.5 +
                  seg['ve']  * 0.1 + K_red)
         Hl_total += K_seg * V**2 / (2 * 9.81)
@@ -512,7 +524,11 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
     if tem_valvula:
         Hc = (Q / Kv_eq)**2 * (rho_f / 1000.0) * 1e5 / (rho_f * 9.81) if Kv_eq > 0 else 9999.0
 
-    return Hd_total + Hl_total + dz + Hc, Hd_total, Hl_total, dz, Hc
+    H_pcv = 0.0
+    if pcv_set_bar is not None and pcv_set_bar > 0:
+        H_pcv = (pcv_set_bar * 100000.0) / (rho_f * 9.81)
+
+    return Hd_total + Hl_total + dz + Hc + H_pcv, Hd_total, Hl_total, dz, Hc
 
 def hm(h):
     return f"{int(h)}h {int((h-int(h))*60)}min"
@@ -767,6 +783,12 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
             hy_inp.append([
                 ("RO Vazão / Beta" if PT else "RO Flow / Beta"), f"{hy_data.get('ro_q_des', 0):.0f} m³/h / {hy_data.get('ro_beta', 0):.3f}",
                 ("RO ΔP Permanente" if PT else "RO Permanent ΔP"), f"{hy_data.get('ro_dp_des', 0):.2f} bar"
+            ])
+
+        if hy_data.get('pcv_active'):
+            hy_inp.append([
+                ("PCV Habilitada" if PT else "PCV Enabled"), ("Sim" if PT else "Yes"), 
+                ("PCV Setpoint" if PT else "PCV Setpoint"), f"{hy_data.get('pcv_setpoint_bar', 0):.2f} bar"
             ])
             
         th2 = Table(hy_inp, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
@@ -1105,6 +1127,15 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             if kv_ro_active:
                 st.success(S["ro_kv_res"].format(kv=kv_ro_active))
 
+    st.subheader(S["pcv_hdr"])
+    pcv_active = st.checkbox(S["pcv_enable"], value=False, key="pcv_active")
+    pcv_setpoint_bar = None
+
+    if pcv_active:
+        pcv_setpoint_bar = st.number_input(S["pcv_set"], min_value=0.1, value=3.0, step=0.1, key="pcv_set")
+        h_pcv_eq = (pcv_setpoint_bar * 100000.0) / (hy_rho * 9.81)
+        st.info(S["pcv_head"].format(h=h_pcv_eq))
+
     st.subheader(S["pump_curve_hdr"])
     st.caption(S["pump_curve_help"])
 
@@ -1151,10 +1182,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     lbl_ref3 = f"{op_ref3:g}%"
     lbl_usr  = f"{user_op:g}%"
 
-    def sys_curve_base(Q_arr, ro_kv_val):
+    def sys_curve_base(Q_arr, ro_kv_val, pcv_set_val):
         H = []
         for Q in Q_arr:
-            h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm, ro_kv_val)
+            h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm, ro_kv_val, pcv_set_val)
             H.append(h)
         return _np2.array(H)
 
@@ -1166,18 +1197,18 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             cv_resolved.append((kv_resolved, 100))
         return cv_resolved
 
-    def sys_curve(Q_arr, op_pct, ro_kv_val):
+    def sys_curve(Q_arr, op_pct, ro_kv_val, pcv_set_val):
         cv_ov = resolve_ctrl_valves(op_pct)
         H = []
         for Q in Q_arr:
-            h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm, ro_kv_val)
+            h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm, ro_kv_val, pcv_set_val)
             H.append(h)
         return _np2.array(H)
 
-    H_sys_base = sys_curve_base(Qr, kv_ro_active)
-    H_sys_ref1 = sys_curve(Qr, op_ref1, kv_ro_active)
-    H_sys_ref3 = sys_curve(Qr, op_ref3, kv_ro_active)
-    H_sys_usr  = sys_curve(Qr, user_op, kv_ro_active)
+    H_sys_base = sys_curve_base(Qr, kv_ro_active, pcv_setpoint_bar)
+    H_sys_ref1 = sys_curve(Qr, op_ref1, kv_ro_active, pcv_setpoint_bar)
+    H_sys_ref3 = sys_curve(Qr, op_ref3, kv_ro_active, pcv_setpoint_bar)
+    H_sys_usr  = sys_curve(Qr, user_op, kv_ro_active, pcv_setpoint_bar)
 
     Qp = np.array([p[0] for p in pump_pts])
     Hp = np.array([p[1] for p in pump_pts])
@@ -1358,7 +1389,9 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'ro_beta': ro_beta if ro_active else None,
             'ro_q_des': ro_q_des if ro_active else None,
             'ro_dp_des': ro_dp_des if ro_active else None,
-            'kv_ro': kv_ro_active
+            'kv_ro': kv_ro_active,
+            'pcv_active': pcv_active,
+            'pcv_setpoint_bar': pcv_setpoint_bar if pcv_active else None,
         }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1398,8 +1431,8 @@ with tab_th:
         if T110 is None or T90 is None:
             st.error(S["err_mu"]); st.stop()
 
-        W_heat  = P_heat  * (ef_heat/100) * hf_heat * 1000.0   
-        F_heat  = Q_heat  / 3600.0                             
+        W_heat  = P_heat  * hf_heat * 1000.0   
+        F_heat  = Q_heat  / 3600.0                                     
         m_fluid = vol_m3  * rho
 
         dt    = 1.0
@@ -1421,7 +1454,7 @@ with tab_th:
         mask_h  = time <= t110_s
         t_hp    = time[mask_h]; T_hp = Tf_h[mask_h]
 
-        W_cal  = P_cal * (ef_cal/100) * hf_cal * 1000.0
+        W_cal  = P_cal * hf_cal * 1000.0
         F_cal  = Q_cal / 3600.0
 
         tc     = np.arange(t110_s, t_max, dt)
@@ -1531,8 +1564,10 @@ Fases com vazões diferentes produzirão curvas de temperatura com inclinações
 
 $$m \cdot c_p \cdot \frac{dT_f}{dt} = \dot{W}_p - Q_{perda}$$
 
-- $\dot{W}_p = P_{bomba} \cdot \eta \cdot f_{calor}$ [W] — constante por fase
+- $\dot{W}_p = P_{bomba} \cdot f_{calor}$ [W] — constante por fase
 - $m = V_{total} \cdot \rho$ [kg]
+
+*(Nota: a eficiência hidráulica da bomba afeta o consumo elétrico do motor, mas para o balanço térmico do fluido num sistema fechado, assume-se que 100% da potência de eixo mecânico é dissipada como calor por atrito).*
 
 ### 2.4 Resistências Térmicas
 
@@ -1579,14 +1614,18 @@ Para $Re<2300$: $f=64/Re$.
 | Válvula esfera (bloqueio) | 0,10 |
 | Válvula borboleta (bloqueio) | 0,50 |
 
+Para perdas de expansão súbita, o coeficiente $K$ padrão baseado no diâmetro menor ($d_1$) é transladado matematicamente para o referencial de velocidade do diâmetro maior ($d_2$) da tubulação atual, garantindo a conservação de energia.
+
 ### 3.3 Válvula de Controle — Kv (IEC 60534)
 
 $$\Delta P = \left(\frac{Q}{K_{v,ef}}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0{,}865$$
 
-### 3.4 Placa de Orifício (RO) — Perda Permanente (ISO 5167)
+### 3.4 Placa de Orifício (RO) e Válvula de Contrapressão (PCV)
 
-A perda de carga calculada é a Perda de Pressão Permanente (PPL) da placa de orifício, que afeta a curva da bomba, e não o $\Delta P$ imediato medido nas tomadas:
+A resistência de uma placa de orifício comporta-se de forma quadrática:
 $$PPL = \Delta P_{medido} \times (1 - \beta^{1{,}9})$$
+
+Se habilitada, a PCV introduz um degrau constante na perda de carga do sistema, impondo o equivalente em altura manométrica do seu *setpoint* fixo, "achatando" a variação paramétrica e estabilizando o ambiente a montante independente da vazão.
 
 ### 3.5 Curva da Bomba e Leis de Semelhança
 
@@ -1643,8 +1682,10 @@ Phases with different flow rates will produce temperature curves with distinctly
 
 $$m \cdot c_p \cdot \frac{dT_f}{dt} = \dot{W}_p - Q_{loss}$$
 
-- $\dot{W}_p = P_{pump} \cdot \eta \cdot f_{heat}$ [W] — constant per phase
+- $\dot{W}_p = P_{pump} \cdot f_{heat}$ [W] — constant per phase
 - $m = V_{total} \cdot \rho$ [kg]
+
+*(Note: While pump hydraulic efficiency affects the motor's electrical draw, for the fluid thermal balance in a closed system, it is assumed that 100% of the mechanical shaft power is dissipated into the fluid as heat).*
 
 ### 2.4 Thermal Resistances
 
@@ -1689,14 +1730,18 @@ For $Re<2300$: $f=64/Re$.
 | Ball valve (isolation) | 0.10 |
 | Butterfly valve (isolation) | 0.50 |
 
+For sudden expansions, the standard $K$ coefficient based on the smaller diameter is translated to the downstream velocity reference, properly conserving system energy.
+
 ### 3.3 Control Valve — Kv (IEC 60534)
 
 $$\Delta P = \left(\frac{Q}{K_{v,eff}}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0.865$$
 
-### 3.4 Restriction Orifice (RO) — Permanent Loss (ISO 5167)
+### 3.4 Restriction Orifice (RO) and Backpressure Valve (PCV)
 
-The calculated pressure drop is the Permanent Pressure Loss (PPL) of the orifice plate, which actually acts against the pump, not the immediate measured $\Delta P$ across the taps:
+The RO applies a quadratic resistance curve to the system:
 $$PPL = \Delta P_{measured} \times (1 - \beta^{1.9})$$
+
+If enabled, the PCV introduces a static vertical step in the system curve equal to the head equivalent of its fixed setpoint, flattening the pressure parametric variation and securing the upstream environment regardless of flow rate.
 
 ### 3.5 Pump Curve and Affinity Laws
 
