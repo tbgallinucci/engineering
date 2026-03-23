@@ -447,12 +447,15 @@ def solve_Ts(Tf, Tamb, R_int, R_ext, A_rad, eps, nit=15):
             break
     return Ts
 
+RHO_STEEL = 7850.0   # kg/m³ — carbon steel
+CP_STEEL  = 500.0    # J/kg·K — carbon steel
+
 def euler_step(Tf, Tamb, F_flow, W_pump,
                rho, cp, kf, d_in, D_out, L, eps, hext, m_tot):
     mu   = float(viscosity_model(Tf))
     Re   = (4 * F_flow * rho) / (math.pi * d_in * mu) if mu > 0 else 1e6
     Pr   = (mu * cp) / kf
-    Nu   = 0.023 * max(Re, 1)**0.8 * max(Pr, 0.01)**0.33
+    Nu   = 0.023 * max(Re, 1)**0.8 * max(Pr, 0.01)**0.4   # Dittus-Boelter: Pr^0.4 for heating
     h_in = Nu * kf / d_in
     Rci  = 1.0 / (h_in * math.pi * d_in * L)
     Rcp  = math.log(D_out / d_in) / (2.0 * math.pi * K_STEEL * L)
@@ -461,21 +464,32 @@ def euler_step(Tf, Tamb, F_flow, W_pump,
     Arad = math.pi * D_out * L
     Ts   = solve_Ts(Tf, Tamb, Rint, Rco, Arad, eps)
     Qloss = (Tf - Ts) / Rint
-    return (W_pump - Qloss) / (m_tot * cp)
+    # Effective thermal mass: fluid + pipe wall steel
+    m_steel = RHO_STEEL * (math.pi / 4.0) * (D_out**2 - d_in**2) * L
+    m_eff   = m_tot * cp + m_steel * CP_STEEL   # [J/K]
+    return (W_pump - Qloss) / m_eff
+
+def _colebrook_turbulent(Re, er):
+    """Iterative Colebrook-White solution for fully turbulent regime."""
+    f = 0.25 / (math.log10(er/3.7 + 5.74/max(Re, 1)**0.9))**2  # Swamee-Jain seed
+    for _ in range(50):
+        fn = (1/(-2*math.log10(er/3.7 + 2.51/(Re*math.sqrt(f)))))**2
+        if abs(fn - f) < 1e-8:
+            break
+        f = fn
+    return f
 
 def colebrook(Re, er):
     Re = max(Re, 1)
     if Re <= 2300:
         return 64 / Re
-    f_turb = 0.25 / (math.log10(er/3.7 + 5.74/max(Re,1)**0.9))**2
-    for _ in range(50):
-        fn = (1/(-2*math.log10(er/3.7 + 2.51/(Re*math.sqrt(f_turb)))))**2
-        if abs(fn - f_turb) < 1e-8: break
-        f_turb = fn
+    f_turb = _colebrook_turbulent(Re, er)
     if Re >= 4000:
         return f_turb
+    # Transition zone: linear interpolation between laminar (Re=2300) and
+    # iterative Colebrook-White value at Re=4000 (consistent with turbulent solver)
     f_lam_2300  = 64 / 2300
-    f_turb_4000 = 0.25 / (math.log10(er/3.7 + 5.74/4000**0.9))**2
+    f_turb_4000 = _colebrook_turbulent(4000, er)
     alpha = (Re - 2300) / (4000 - 2300)
     return f_lam_2300 + alpha * (f_turb_4000 - f_lam_2300)
 
@@ -513,16 +527,12 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
         H_ro = (Q / kv_ro)**2 * (100.0 / 9.81)
         Hl_total += H_ro
 
+    # Single FCV: ctrl_valves contains at most one entry (Kv, ignored_op)
     Hc = 0.0
-    Kv_eq = 0.0
-    tem_valvula = False
-    for Kv, op in ctrl_valves:
-        if Kv > 0:
-            tem_valvula = True
-            if op > 0:
-                Kv_eq += Kv * (op / 100.0)
-    if tem_valvula:
-        Hc = (Q / Kv_eq)**2 * (rho_f / 1000.0) * 1e5 / (rho_f * 9.81) if Kv_eq > 0 else 9999.0
+    if ctrl_valves:
+        Kv_fcv = ctrl_valves[0][0]   # first (and only) FCV, Kv already at desired opening
+        if Kv_fcv > 0:
+            Hc = (Q / Kv_fcv)**2 * (rho_f / 1000.0) * 1e5 / (rho_f * 9.81)
 
     H_pcv = 0.0
     if pcv_set_bar is not None and pcv_set_bar > 0:
@@ -1118,6 +1128,24 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             dp_pa = (Q_s**2 * hy_rho * (1 - ro_beta**4)) / (2 * (C_d**2) * (A_0**2))
             ppl_pa = dp_pa * (1 - ro_beta**1.9)
             ro_dp_des = ppl_pa / 100000.0
+
+            # Re check: Cd = 0.61 is only valid for fully turbulent flow
+            V_pipe = Q_s / (math.pi * ro_D**2 / 4.0)
+            Re_D   = hy_rho * V_pipe * ro_D / (hy_mu_hot)
+            _re_min = {0.1: 5e3, 0.2: 1e4, 0.3: 2e4, 0.5: 5e4, 0.7: 1.5e5, 0.75: 2e5}
+            _betas = sorted(_re_min.keys())
+            _b_near = min(_betas, key=lambda b: abs(b - ro_beta))
+            Re_min_valid = _re_min[_b_near]
+            if Re_D < Re_min_valid:
+                st.warning(
+                    (f"⚠️ **Cd = 0.61 pode não ser válido:** Re={Re_D:.0f} está abaixo do mínimo recomendado "
+                     f"pela ISO 5167 para β={ro_beta:.2f} (Re_mín ≈ {Re_min_valid:.0f}). "
+                     f"A perda de carga calculada pode ser subestimada. Verifique se o escoamento é turbulento nesta condição.")
+                    if lang == "pt" else
+                    (f"⚠️ **Cd = 0.61 may not be valid:** Re={Re_D:.0f} is below the ISO 5167 minimum "
+                     f"for β={ro_beta:.2f} (Re_min ≈ {Re_min_valid:.0f}). "
+                     f"Calculated pressure loss may be underestimated. Verify that flow is fully turbulent at this condition.")
+                )
             
             st.markdown(f"**{S['ro_beta'].format(beta=ro_beta)}**")
             st.markdown(f"**{S['ro_dp_calc'].format(dp=ro_dp_des)}**")
@@ -1190,12 +1218,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         return _np2.array(H)
 
     def resolve_ctrl_valves(op_pct):
-        cv_resolved = []
-        for data in fcv_curve_data:
-            _ops_c, _kvs_c, _interp_c = data
-            kv_resolved = float(_np2.exp(_interp_c(op_pct)))
-            cv_resolved.append((kv_resolved, 100))
-        return cv_resolved
+        # Single FCV: look up Kv at the requested opening and return as a one-element list
+        _ops_c, _kvs_c, _interp_c = fcv_curve_data[0]
+        kv_resolved = float(_np2.exp(_interp_c(op_pct)))
+        return [(kv_resolved, None)]
 
     def sys_curve(Q_arr, op_pct, ro_kv_val, pcv_set_val):
         cv_ov = resolve_ctrl_valves(op_pct)
@@ -1480,8 +1506,8 @@ with tab_th:
         r4.metric(S["r_T110"],f"{T110:.1f} °C")
         r5.metric(S["r_Teq"], f"{T_eq:.1f} °C")
 
-        E_heat  = P_heat * t110_h                                        
-        E_cal   = P_cal  * cwin_h if cwin_h is not None else None        
+        E_heat  = P_heat * hf_heat * t110_h                                        
+        E_cal   = P_cal  * hf_cal  * cwin_h if cwin_h is not None else None        
         E_total = E_heat + E_cal  if E_cal  is not None else None
 
         t1, t2, t3, t4, t5 = st.columns(5)
@@ -1562,19 +1588,25 @@ Fases com vazões diferentes produzirão curvas de temperatura com inclinações
 
 ### 2.3 Balanço Térmico — Euler Explícito (Δt = 1 s)
 
-$$m \cdot c_p \cdot \frac{dT_f}{dt} = \dot{W}_p - Q_{perda}$$
+$$m_{ef} \cdot \frac{dT_f}{dt} = \dot{W}_p - Q_{perda}$$
 
 - $\dot{W}_p = P_{bomba} \cdot f_{calor}$ [W] — constante por fase
-- $m = V_{total} \cdot \rho$ [kg]
+- $m_{ef} = V_{total} \cdot \rho \cdot c_p + m_{aço} \cdot c_{p,aço}$ [J/K] — massa térmica efetiva (fluido + parede da tubulação)
+- $m_{aço} = \rho_{aço} \cdot \frac{\pi}{4}(D_e^2 - d_i^2) \cdot L$, com $\rho_{aço} = 7850$ kg/m³, $c_{p,aço} = 500$ J/kg·K
 
-*(Nota: a eficiência hidráulica da bomba afeta o consumo elétrico do motor, mas para o balanço térmico do fluido num sistema fechado, assume-se que 100% da potência de eixo mecânico é dissipada como calor por atrito).*
+*(Nota: a eficiência hidráulica da bomba afeta o consumo elétrico do motor, mas para o balanço térmico do fluido num sistema fechado, assume-se que 100% da potência de eixo mecânico é dissipada como calor por atrito.)*
+
+**Energia consumida por fase:**
+$$E_{fase} = P_{bomba} \cdot f_{calor} \cdot \Delta t_{fase} \quad [\text{kWh}]$$
 
 ### 2.4 Resistências Térmicas
 
 $$R_{int} = R_{conv,int} + R_{cond,parede}$$
 
-**Convecção interna (Dittus-Boelter):**
-$$Nu = 0{,}023 \cdot Re^{0{,}8} \cdot Pr^{0{,}33}, \quad Re = \frac{4 \dot{m}}{\pi d_i \mu}$$
+**Convecção interna (Dittus-Boelter — aquecimento):**
+$$Nu = 0{,}023 \cdot Re^{0{,}8} \cdot Pr^{0{,}4}, \quad Re = \frac{4 \dot{m}}{\pi d_i \mu}$$
+
+> O expoente $Pr^{0{,}4}$ aplica-se à condição de aquecimento (Incropera, eq. 8.60). O uso incorreto de $Pr^{0{,}3}$ (resfriamento) subestimaria Nu e superestimaria a velocidade de aquecimento, especialmente para óleos com alto número de Prandtl.
 
 **Condução na parede:** $R_{cond} = \ln(D_e/d_i)\,/\,(2\pi k_{aço} L)$, com $k_{aço}=45$ W/m·K
 
@@ -1602,7 +1634,7 @@ Resolvida iterativamente; perda usada: $Q_{perda} = (T_f - T_s)/R_{int}$
 
 $$h_f = f \cdot \frac{L}{d_i} \cdot \frac{V^2}{2g}; \quad \frac{1}{\sqrt{f}}=-2\log_{10}\!\left(\frac{\varepsilon_r}{3{,}7}+\frac{2{,}51}{Re\sqrt{f}}\right)$$
 
-Para $Re<2300$: $f=64/Re$.
+Para $Re<2300$: $f=64/Re$ (laminar). Para $2300 \le Re < 4000$ (zona de transição): interpolação linear entre $f_{lam}(2300)$ e $f_{Colebrook}(4000)$ — ambos os extremos calculados pelo mesmo solver iterativo Colebrook-White, garantindo continuidade.
 
 ### 3.2 Perdas Localizadas (K)
 
@@ -1618,12 +1650,16 @@ Para perdas de expansão súbita, o coeficiente $K$ padrão baseado no diâmetro
 
 ### 3.3 Válvula de Controle — Kv (IEC 60534)
 
-$$\Delta P = \left(\frac{Q}{K_{v,ef}}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0{,}865$$
+$$\Delta P = \left(\frac{Q}{K_{v}(\text{abertura})}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0{,}865$$
+
+O sistema suporta **uma única FCV** (válvula de controle de vazão). O $K_v$ efetivo é obtido diretamente pela curva $K_v \times abertura$ fornecida pelo usuário (interpolação log-linear), sem combinação série/paralelo.
 
 ### 3.4 Placa de Orifício (RO) e Válvula de Contrapressão (PCV)
 
 A resistência de uma placa de orifício comporta-se de forma quadrática:
 $$PPL = \Delta P_{medido} \times (1 - \beta^{1{,}9})$$
+
+> **Atenção:** O coeficiente de descarga $C_d = 0{,}61$ é válido apenas para escoamento plenamente turbulento. A ferramenta exibe um alerta quando o número de Reynolds calculado está abaixo do mínimo recomendado pela ISO 5167 para o $\beta$ configurado.
 
 Se habilitada, a PCV introduz um degrau constante na perda de carga do sistema, impondo o equivalente em altura manométrica do seu *setpoint* fixo, "achatando" a variação paramétrica e estabilizando o ambiente a montante independente da vazão.
 
@@ -1680,17 +1716,23 @@ Phases with different flow rates will produce temperature curves with distinctly
 
 ### 2.3 Thermal Balance — Explicit Euler (Δt = 1 s)
 
-$$m \cdot c_p \cdot \frac{dT_f}{dt} = \dot{W}_p - Q_{loss}$$
+$$m_{eff} \cdot \frac{dT_f}{dt} = \dot{W}_p - Q_{loss}$$
 
 - $\dot{W}_p = P_{pump} \cdot f_{heat}$ [W] — constant per phase
-- $m = V_{total} \cdot \rho$ [kg]
+- $m_{eff} = V_{total} \cdot \rho \cdot c_p + m_{steel} \cdot c_{p,steel}$ [J/K] — effective thermal mass (fluid + pipe wall)
+- $m_{steel} = \rho_{steel} \cdot \frac{\pi}{4}(D_o^2 - d_i^2) \cdot L$, with $\rho_{steel} = 7850$ kg/m³, $c_{p,steel} = 500$ J/kg·K
 
-*(Note: While pump hydraulic efficiency affects the motor's electrical draw, for the fluid thermal balance in a closed system, it is assumed that 100% of the mechanical shaft power is dissipated into the fluid as heat).*
+*(Note: While pump hydraulic efficiency affects the motor's electrical draw, for the fluid thermal balance in a closed system, it is assumed that 100% of the mechanical shaft power is dissipated into the fluid as heat.)*
+
+**Energy consumed per phase:**
+$$E_{phase} = P_{pump} \cdot f_{heat} \cdot \Delta t_{phase} \quad [\text{kWh}]$$
 
 ### 2.4 Thermal Resistances
 
-**Internal convection (Dittus-Boelter):**
-$$Nu = 0.023 \cdot Re^{0.8} \cdot Pr^{0.33}$$
+**Internal convection (Dittus-Boelter — heating):**
+$$Nu = 0.023 \cdot Re^{0.8} \cdot Pr^{0.4}$$
+
+> The exponent $Pr^{0.4}$ applies to the heating condition (Incropera, eq. 8.60). Using $Pr^{0.3}$ (cooling) would underestimate Nu and overpredict the heating rate, especially for high-Prandtl-number oils.
 
 **Wall conduction:** $R_{cond} = \ln(D_o/d_i)\,/\,(2\pi k_{steel} L)$, $k_{steel}=45$ W/m·K
 
@@ -1718,7 +1760,7 @@ Solved iteratively; heat loss: $Q_{loss} = (T_f - T_s)/R_{int}$
 
 $$h_f = f \cdot \frac{L}{d_i} \cdot \frac{V^2}{2g}; \quad \frac{1}{\sqrt{f}}=-2\log_{10}\!\left(\frac{\varepsilon_r}{3.7}+\frac{2.51}{Re\sqrt{f}}\right)$$
 
-For $Re<2300$: $f=64/Re$.
+For $Re<2300$: $f=64/Re$ (laminar). For $2300 \le Re < 4000$ (transition zone): linear interpolation between $f_{lam}(2300)$ and $f_{Colebrook}(4000)$ — both endpoints computed by the same iterative Colebrook-White solver, ensuring consistency and continuity.
 
 ### 3.2 Minor Losses (K method)
 
@@ -1734,12 +1776,16 @@ For sudden expansions, the standard $K$ coefficient based on the smaller diamete
 
 ### 3.3 Control Valve — Kv (IEC 60534)
 
-$$\Delta P = \left(\frac{Q}{K_{v,eff}}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0.865$$
+$$\Delta P = \left(\frac{Q}{K_{v}(\text{opening})}\right)^2\frac{\rho}{1000}, \quad K_v \approx C_v \times 0.865$$
+
+The tool supports a **single FCV** (flow control valve). The effective $K_v$ is read directly from the user-supplied $K_v$ vs. opening curve (log-linear interpolation) — no series/parallel combination is performed.
 
 ### 3.4 Restriction Orifice (RO) and Backpressure Valve (PCV)
 
 The RO applies a quadratic resistance curve to the system:
 $$PPL = \Delta P_{measured} \times (1 - \beta^{1.9})$$
+
+> **Note:** The discharge coefficient $C_d = 0.61$ is valid only for fully turbulent flow. The tool displays a warning when the calculated pipe Reynolds number falls below the ISO 5167 minimum for the configured $\beta$ ratio.
 
 If enabled, the PCV introduces a static vertical step in the system curve equal to the head equivalent of its fixed setpoint, flattening the pressure parametric variation and securing the upstream environment regardless of flow rate.
 
