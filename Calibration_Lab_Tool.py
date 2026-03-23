@@ -101,6 +101,15 @@ def load_config_callback():
                 
             st.session_state[k] = v
 
+def overwrite_config_callback():
+    """Reuse save_config_callback after pointing new_cfg_name at the chosen existing config."""
+    name = st.session_state.get("overwrite_cfg_name")
+    if not name:
+        return
+    # Temporarily set the name key so save_config_callback writes to the right slot
+    st.session_state["new_cfg_name"] = name
+    save_config_callback()
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TRANSLATIONS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -239,6 +248,11 @@ TR = {
         "cfg_succ": "Salvo com sucesso!",
         "cfg_lsucc": "Carregado com sucesso!",
         "cfg_empty": "Nenhuma configuração salva.",
+        "cfg_overwrite": "Substituir Existente",
+        "cfg_overwrite_sel": "Selecione a configuração a substituir:",
+        "cfg_overwrite_btn": "♻️ Substituir",
+        "cfg_overwrite_succ": "Configuração substituída com sucesso!",
+        "cfg_save_new": "Salvar como Nova",
         "hide_ref": "👁️ Ocultar curvas de referência (Pts 1 e 3)",
         "hide_dp": "👁️ Ocultar valores de ΔP",
         "ro_hdr": "🕳️ Orifício de Restrição (RO)",
@@ -396,6 +410,11 @@ TR = {
         "cfg_succ": "Saved successfully!",
         "cfg_lsucc": "Loaded successfully!",
         "cfg_empty": "No saved configs.",
+        "cfg_overwrite": "Overwrite Existing",
+        "cfg_overwrite_sel": "Select configuration to overwrite:",
+        "cfg_overwrite_btn": "♻️ Overwrite",
+        "cfg_overwrite_succ": "Configuration overwritten successfully!",
+        "cfg_save_new": "Save as New",
         "hide_ref": "👁️ Hide reference curves (Pts 1 & 3)",
         "hide_dp": "👁️ Hide ΔP values",
         "ro_hdr": "🕳️ Restriction Orifice (RO)",
@@ -982,9 +1001,19 @@ with st.sidebar:
     cfg_names = list(get_saved_configs().keys())
 
     with st.expander(S["cfg_save"]):
+        # ── Path 1: Save as a brand-new config ──
+        st.markdown(f"**{S['cfg_save_new']}**")
         st.text_input(S["cfg_name"], key="new_cfg_name")
         if st.button(S["cfg_save"], key="save_cfg_btn", on_click=save_config_callback):
             st.success(S["cfg_succ"])
+
+        # ── Path 2: Overwrite an existing config ──
+        if cfg_names:
+            st.markdown("---")
+            st.markdown(f"**{S['cfg_overwrite']}**")
+            st.selectbox(S["cfg_overwrite_sel"], cfg_names, key="overwrite_cfg_name")
+            if st.button(S["cfg_overwrite_btn"], key="overwrite_cfg_btn", on_click=overwrite_config_callback):
+                st.success(S["cfg_overwrite_succ"])
 
     with st.expander(S["cfg_load"]):
         if cfg_names:
