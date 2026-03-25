@@ -15,6 +15,8 @@ import json
 import os
 from datetime import datetime
 from github import Github
+from scipy.interpolate import CubicSpline
+from scipy.optimize import brentq
 
 st.set_page_config(
     page_title="Calibration Lab Sizing Tool",
@@ -194,6 +196,10 @@ TR = {
         "ctrl_v": "Válvula de Controle (FCV)",
         "op_lbl": "Abertura da válvula (%)",
         "op_help": "Deslize para ver a curva do sistema atualizar em tempo real.",
+        "op_freq_lbl": "Frequência da bomba (Hz)",
+        "op_freq_help": "Deslize para ver a curva da bomba atualizar em tempo real.",
+        "pump_usr": "Bomba — {f} Hz (usuário)",
+        "op_comb": "🎯 Ponto de Operação Combinado (Interativo)",
         "fl_hy": "Fluido (para hidráulica)",
         "hy_rho": "Densidade (kg/m³):",
         "hy_mu_h": "Viscosidade nominal de processo (cP):",
@@ -356,6 +362,10 @@ TR = {
         "ctrl_v": "Control Valve (FCV)",
         "op_lbl": "Valve opening (%)",
         "op_help": "Slide to see the chart update in real-time.",
+        "op_freq_lbl": "Pump frequency (Hz)",
+        "op_freq_help": "Slide to see the pump curve update in real-time.",
+        "pump_usr": "Pump — {f} Hz (user)",
+        "op_comb": "🎯 Combined Operating Point (Interactive)",
         "fl_hy": "Fluid (for hydraulics)",
         "hy_rho": "Density (kg/m³):",
         "hy_mu_h": "Nominal process viscosity (cP):",
@@ -448,7 +458,6 @@ SIGMA    = 5.670374419e-8
 K_STEEL  = 45.0
 
 def solve_visc_temp(visc_fn, mu_pa):
-    from scipy.optimize import brentq
     try:
         return brentq(lambda T: visc_fn(T) - mu_pa, 0, 250)
     except Exception:
@@ -1223,10 +1232,12 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         hide_dp_lines = st.checkbox(S["hide_dp"], value=False, key="hide_dp_lines")
         show_dp = not hide_dp_lines
 
-    user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
+    col_sl1, col_sl2 = st.columns(2)
+    with col_sl1:
+        user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
+    with col_sl2:
+        user_freq = st.slider(S["op_freq_lbl"], int(pc_fmin), int(pc_fmax), int(pc_freq0), key="main_pump_slider", help=S["op_freq_help"])
 
-    from scipy.interpolate import CubicSpline
-    from scipy.optimize import brentq
     import numpy as _np2
 
     Qr = np.linspace(0, hy_qmax, 400)
@@ -1261,6 +1272,8 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         return _np2.array(H)
 
     H_sys_base = sys_curve_base(Qr, kv_ro_active, pcv_setpoint_bar)
+    cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
+
     H_sys_ref1 = sys_curve(Qr, op_ref1, kv_ro_active, pcv_setpoint_bar)
     H_sys_ref3 = sys_curve(Qr, op_ref3, kv_ro_active, pcv_setpoint_bar)
     H_sys_usr  = sys_curve(Qr, user_op, kv_ro_active, pcv_setpoint_bar)
@@ -1283,6 +1296,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     Qnom, Hnom, cs_nom, Qmax_nom = pump_curve_at_freq(pc_freq0)
     Qmin, Hmin, cs_fmin, Qmax_min = pump_curve_at_freq(pc_fmin)
     Qmx,  Hmx,  cs_fmax, Qmax_mx  = pump_curve_at_freq(pc_fmax)
+    Qusr, Husr, cs_fusr, Qmax_usr = pump_curve_at_freq(user_freq)
 
     def find_op(cs_pump_f, Qmax_f, sys_H_arr, sys_Q_arr=Qr):
         cs_sys = CubicSpline(sys_Q_arr, sys_H_arr, extrapolate=True)
@@ -1303,6 +1317,9 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     op_ref1_nom = find_op(cs_nom, Qmax_nom, H_sys_ref1)
     op_ref3_nom = find_op(cs_nom, Qmax_nom, H_sys_ref3)
     op_usr      = find_op(cs_nom, Qmax_nom, H_sys_usr)
+    
+    op_usr_custom = find_op(cs_fusr, Qmax_usr, H_sys_usr)
+    q_usr_cust, h_usr_cust = op_usr_custom
 
     fh = go.Figure()
     fh.add_trace(go.Scatter(x=Qr, y=H_sys_base, mode='lines',
@@ -1326,6 +1343,9 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     if pc_freq0 not in (pc_fmin, pc_fmax):
         fh.add_trace(go.Scatter(x=Qnom, y=Hnom, mode='lines',
             name=S["pump_nom"].format(f=pc_freq0), line=dict(color='orangered', width=2, dash='dot')))
+
+    fh.add_trace(go.Scatter(x=Qusr, y=Husr, mode='lines',
+        name=S["pump_usr"].format(f=user_freq), line=dict(color='#9C27B0', width=2.5, dash='dashdot')))
 
     def ops_for_freq(cs_f, Qmax_f):
         return (find_op(cs_f, Qmax_f, H_sys_ref1), find_op(cs_f, Qmax_f, H_sys_usr), find_op(cs_f, Qmax_f, H_sys_ref3))
@@ -1355,8 +1375,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                 ))
 
     if show_dp:
-        cs_sys_base = CubicSpline(Qr, H_sys_base, extrapolate=True)
-        
         for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
             items_to_annotate = [(lbl_usr, ops_tuple[1])]
             if show_ref:
@@ -1383,9 +1401,35 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                         bgcolor="rgba(255,255,255,0.7)"
                     )
 
+    # --- Ponto de Operação Combinado (Bomba Interativa x Sistema Interativo) ---
+    if q_usr_cust is not None:
+        fh.add_trace(go.Scatter(
+            x=[q_usr_cust], y=[h_usr_cust], mode='markers+text',
+            marker=dict(color='#9C27B0', size=16, symbol='star', line=dict(color='white', width=2)),
+            text=[f"  <b>Combinação @ {user_freq}Hz / {user_op}%</b><br>  Q={q_usr_cust:.0f} m³/h | H={h_usr_cust:.1f} m"],
+            textfont=dict(color='#9C27B0', size=12), textposition='middle right', showlegend=False
+        ))
+        
+        if show_dp:
+            h_base_op_cust = float(cs_sys_base(q_usr_cust))
+            dP_bar_cust = (h_usr_cust - h_base_op_cust) * hy_rho * 9.81 / 100000.0
+
+            fh.add_shape(type="line",
+                x0=q_usr_cust, y0=h_base_op_cust, x1=q_usr_cust, y1=h_usr_cust,
+                line=dict(color='#9C27B0', width=2.5, dash="dot"), opacity=0.8
+            )
+            fh.add_annotation(
+                x=q_usr_cust, y=(h_usr_cust + h_base_op_cust)/2,
+                text=f"ΔP={dP_bar_cust:.1f} bar",
+                showarrow=False, xanchor="left", xshift=8,
+                font=dict(color='#9C27B0', size=11, family="Arial", weight="bold"),
+                bgcolor="rgba(255,255,255,0.8)"
+            )
+    # --------------------------------------------------------------------------
+
     fh.add_vline(x=hy_qmax, line_dash="dot", line_color="gray", annotation_text=f"Q={hy_qmax:.0f} m³/h", annotation_position="top right")
 
-    all_pump_H = list(Hnom[~np.isnan(Hnom)]) + list(Hmin[~np.isnan(Hmin)]) + list(Hmx[~np.isnan(Hmx)])
+    all_pump_H = list(Hnom[~np.isnan(Hnom)]) + list(Hmin[~np.isnan(Hmin)]) + list(Hmx[~np.isnan(Hmx)]) + list(Husr[~np.isnan(Husr)])
     y_max = max(all_pump_H) * 1.15 if all_pump_H else None
 
     fh.update_layout(
@@ -1395,6 +1439,17 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         template="plotly_white", hovermode="x unified", height=600)
     
     st.plotly_chart(fh, use_container_width=True)
+
+    if q_usr_cust is not None:
+        st.subheader(S["op_comb"])
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Freq. VFD" if lang=="pt" else "VFD Freq.", f"{user_freq} Hz")
+        m2.metric("Abertura FCV" if lang=="pt" else "FCV Opening", f"{user_op} %")
+        m3.metric("Vazão (Q)" if lang=="pt" else "Flow (Q)", f"{q_usr_cust:.1f} m³/h")
+        m4.metric("Altura (H)" if lang=="pt" else "Head (H)", f"{h_usr_cust:.1f} m")
+        dP_bar_calc = (h_usr_cust - float(cs_sys_base(q_usr_cust))) * hy_rho * 9.81 / 100000.0
+        m5.metric("ΔP na FCV" if lang=="pt" else "FCV ΔP", f"{dP_bar_calc:.2f} bar")
+        st.divider()
 
     if any(q is not None for q, _ in [op_ref1_nom, op_ref3_nom, op_usr]):
         st.subheader(S["op_pt_sys"])
