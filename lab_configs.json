@@ -434,10 +434,11 @@
         "pcv_active": false,
         "pcQ2": 250.0,
         "pcH1": 69.0,
-        "ro_d": 0.1015,
+        "ro_d": 0.075,
         "pcH4": 55.0,
         "kvdP": 1.0,
         "sve_1": 1,
+        "main_pump_slider": 50,
         "kvrho": 850.0,
         "sdup_2": 0.3873,
         "cvop_0_2": 82.0,
@@ -507,7 +508,7 @@
         "cvop_0_1": 41.0,
         "stee_1": 1,
         "pc_fmax": 60.0,
-        "ro_D": 0.1937,
+        "ro_D": 0.146,
         "cvkv_0_0": 64.7,
         "sredn_0": 0,
         "mu_nom_cP_th": 25.0,
@@ -529,7 +530,7 @@
         "sve_0": 0,
         "cvkv_0_2": 1105.0,
         "sc90_1": 4,
-        "overwrite_cfg_name": "KSB 125-400 (Medium Flow Pump)",
+        "overwrite_cfg_name": "KSB 125-400 (Medium Flow Pump) - no PCV, one RO",
         "hy_qmax": 500.0
     }
 }
