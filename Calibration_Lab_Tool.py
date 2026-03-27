@@ -15,7 +15,7 @@ import json
 import os
 from datetime import datetime
 from github import Github
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, interp1d
 from scipy.optimize import brentq
 
 st.set_page_config(
@@ -126,10 +126,11 @@ TR = {
         "k_lbl": "Condutividade térmica (W/m·K):",
         "mu_lbl": "Viscosidade dinâmica (Pa·s):",
         "sel_fluid": "Selecione o fluido:",
-        "pipe_sub": "Tubulação (Térmica)",
+        "pipe_sub": "Tubulação",
         "d_in": "Diâmetro interno (m):",
         "d_out": "Diâmetro externo (m):",
         "L_p": "Comprimento total de tubo (m):",
+        "tank_lvl": "Nível mínimo do tanque (m):",
         "eps_lbl": "Emissividade da tubulação (ε):",
         "eps_help": "Aço carbono oxidado ≈ 0.7–0.9 | Aço polido ≈ 0.05–0.1",
         "hout_lbl": "Coef. convecção externa (W/m²·K):",
@@ -194,7 +195,6 @@ TR = {
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
         "ctrl_v": "Válvula de Controle (FCV)",
         "fcv_pos_lbl": "Posição Topológica da FCV:",
-        "fcv_pos_pump": "Na descarga da bomba (Início do loop)",
         "fcv_pos_up": "No final, ANTES da placa (RO) e PCV",
         "fcv_pos_down": "No final, DEPOIS da placa (RO) e PCV (Descarga p/ tanque)",
         "op_lbl": "Abertura da válvula (%)",
@@ -277,6 +277,11 @@ TR = {
         "pcv_enable": "Habilitar PCV a jusante da FCV",
         "pcv_set": "Setpoint da PCV (bar):",
         "pcv_head": "Altura manométrica imposta pela PCV: **{h:.1f} m**",
+        "fm_hdr": "📊 Medidor de Vazão (Perda de Carga)",
+        "fm_enable": "Habilitar medidor de vazão",
+        "fm_help": "Insira 3 pontos da curva do fabricante (Vazão vs ΔP).",
+        "fm_q": "Vazão (m³/h):",
+        "fm_dp": "ΔP (bar):",
         "csv_export_btn": "⬇️ Baixar Pontos de Operação (CSV)",
         "csv_freq": "Freq_Bomba_Hz",
         "csv_op": "Abertura_Valvula_%",
@@ -297,10 +302,11 @@ TR = {
         "k_lbl": "Thermal conductivity (W/m·K):",
         "mu_lbl": "Dynamic viscosity (Pa·s):",
         "sel_fluid": "Select fluid:",
-        "pipe_sub": "Piping (Thermal)",
+        "pipe_sub": "Piping",
         "d_in": "Inner diameter (m):",
         "d_out": "Outer diameter (m):",
         "L_p": "Total pipe length (m):",
+        "tank_lvl": "Tank min. level (m):",
         "eps_lbl": "Pipe emissivity (ε):",
         "eps_help": "Oxidized carbon steel ≈ 0.7–0.9 | Polished steel ≈ 0.05–0.1",
         "hout_lbl": "External convection coeff. (W/m²·K):",
@@ -364,7 +370,6 @@ TR = {
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
         "ctrl_v": "Control Valve (FCV)",
         "fcv_pos_lbl": "FCV Topological Position:",
-        "fcv_pos_pump": "At pump discharge (Start of loop)",
         "fcv_pos_up": "At the end, BEFORE Orifice (RO) and PCV",
         "fcv_pos_down": "At the end, AFTER Orifice (RO) and PCV (Tank discharge)",
         "op_lbl": "Valve opening (%)",
@@ -447,6 +452,11 @@ TR = {
         "pcv_enable": "Enable Downstream PCV",
         "pcv_set": "PCV Setpoint (bar):",
         "pcv_head": "Head imposed by PCV: **{h:.1f} m**",
+        "fm_hdr": "📊 Flow Meter (Pressure Drop)",
+        "fm_enable": "Enable flow meter",
+        "fm_help": "Enter 3 points from the manufacturer curve (Flow vs ΔP).",
+        "fm_q": "Flow (m³/h):",
+        "fm_dp": "ΔP (bar):",
         "csv_export_btn": "⬇️ Download Operating Points (CSV)",
         "csv_freq": "Pump_Freq_Hz",
         "csv_op": "Valve_Opening_%",
@@ -528,7 +538,7 @@ def colebrook(Re, er):
     alpha = (Re - 2300) / (4000 - 2300)
     return f_lam_2300 + alpha * (f_turb_4000 - f_lam_2300)
 
-def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=None, pcv_set_bar=None):
+def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=None, pcv_set_bar=None, fm_interp=None):
     if Q <= 0:
         return 0, 0, 0, dz, 0
 
@@ -562,6 +572,13 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
         H_ro = (Q / kv_ro)**2 * (100.0 / 9.81)
         Hl_total += H_ro
 
+    H_fm = 0.0
+    if fm_interp is not None:
+        dp_bar = float(fm_interp(Q))
+        if dp_bar < 0: dp_bar = 0.0
+        H_fm = dp_bar * 100000.0 / (rho_f * 9.81)
+    Hl_total += H_fm
+
     # Single FCV: ctrl_valves contains at most one entry
     Hc = 0.0
     if ctrl_valves:
@@ -585,7 +602,8 @@ def generate_ops_csv(hy_data, S):
     Qr = hy_data['Qr']
     cs_sys_base = CubicSpline(Qr, hy_data['H_sys_base'], extrapolate=True)
     rho = hy_data['hy_rho']
-    fcv_pos = hy_data.get('fcv_position', 'pump')
+    fcv_pos = hy_data.get('fcv_position', 'upstream')
+    tank_lvl = hy_data.get('tank_min_level', 0.0)
     
     freqs = [
         (hy_data['pc_fmin'], hy_data['ops_fmin_pts']),
@@ -610,27 +628,16 @@ def generate_ops_csv(hy_data, S):
                 h_dp_fcv = h - h_base
                 dp = h_dp_fcv * rho * 9.81 / 100000.0
                 
-                # 2. Pressões de Entrada e Saída (Pin e Pout) baseadas na Posição Topológica
-                p_out = 0.0
+                # 2. Pressões de Entrada e Saída
+                h_downstream = tank_lvl
                 
-                if fcv_pos == 'pump':
-                    # FCV colada na bomba (Sofre contrapressão de TODO o resto do sistema)
-                    p_out = h_base * rho * 9.81 / 100000.0
-                else:
-                    # FCV no final do loop
-                    h_downstream = 0.0
-                    
-                    if fcv_pos == 'upstream':
-                        # Se estiver antes da RO/PCV, sofre a contrapressão destes elementos
-                        if hy_data.get('ro_active') and hy_data.get('kv_ro'):
-                            h_downstream += (q / hy_data['kv_ro'])**2 * (100.0 / 9.81)
-                        if hy_data.get('pcv_active') and hy_data.get('pcv_setpoint_bar'):
-                            h_downstream += (hy_data['pcv_setpoint_bar'] * 100000.0) / (rho * 9.81)
-                    
-                    # Se fcv_pos == 'downstream', h_downstream continua 0 (Descarrega livre no tanque)
-                    
-                    p_out = h_downstream * rho * 9.81 / 100000.0
+                if fcv_pos == 'upstream':
+                    if hy_data.get('ro_active') and hy_data.get('kv_ro'):
+                        h_downstream += (q / hy_data['kv_ro'])**2 * (100.0 / 9.81)
+                    if hy_data.get('pcv_active') and hy_data.get('pcv_setpoint_bar'):
+                        h_downstream += (hy_data['pcv_setpoint_bar'] * 100000.0) / (rho * 9.81)
                 
+                p_out = h_downstream * rho * 9.81 / 100000.0
                 p_in = p_out + dp
                 
                 rows.append({
@@ -757,11 +764,9 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         
         ax.plot(d['Qmin'], d['Hmin'], color='#FFB300', lw=2, label=f"Bomba {d['pc_fmin']:.0f}Hz" if PT else f"Pump {d['pc_fmin']:.0f}Hz")
         ax.plot(d['Qmx'],  d['Hmx'],  color='#CC0000', lw=2, label=f"Bomba {d['pc_fmax']:.0f}Hz" if PT else f"Pump {d['pc_fmax']:.0f}Hz")
-        if d['pc_freq0'] not in (d['pc_fmin'], d['pc_fmax']):
-            ax.plot(d['Qnom'], d['Hnom'], color='orangered', lw=1.5, ls=':', label=f"Bomba {d['pc_freq0']:.0f}Hz" if PT else f"Pump {d['pc_freq0']:.0f}Hz")
         
         op_colors = {lbl_ref1: '#e67e00', lbl_usr: '#8B008B', lbl_ref3: '#006400'}
-        for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fnom', d['ops_fnom_pts']), ('fmax', d['ops_fmax_pts'])]:
+        for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fmax', d['ops_fmax_pts'])]:
             sym = {'fmin': 'v', 'fnom': 'o', 'fmax': '^'}[freq_key]
             items = [(lbl_usr, ops_t[1])]
             if d.get('show_ref', True):
@@ -776,7 +781,7 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
             from scipy.interpolate import CubicSpline
             cs_sys_base = CubicSpline(Qr, d['H_sys_base'], extrapolate=True)
             
-            for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fnom', d['ops_fnom_pts']), ('fmax', d['ops_fmax_pts'])]:
+            for freq_key, ops_t in [('fmin', d['ops_fmin_pts']), ('fmax', d['ops_fmax_pts'])]:
                 items_to_annotate = [(lbl_usr, ops_t[1])]
                 if d.get('show_ref', True):
                     items_to_annotate = [(lbl_ref1, ops_t[0])] + items_to_annotate + [(lbl_ref3, ops_t[2])]
@@ -984,6 +989,7 @@ with st.sidebar:
     L_pipe   = st.number_input(S["L_p"],     min_value=1.0,  value=40.0, key="L_pipe")
     rug_mm   = st.number_input(S["hy_rug"],  min_value=0.001, value=0.046, help=S["hy_rug_h"], key="rug_mm")
     dz_glob  = st.number_input(S["hy_dz"],   value=2.0, key="dz_glob")
+    tank_min_level = st.number_input(S["tank_lvl"], min_value=0.0, value=1.0, key="tank_min_level")
     eps_emit = st.number_input(S["eps_lbl"], min_value=0.01, max_value=1.0, value=0.85, help=S["eps_help"], key="eps_emit")
     h_ext    = st.number_input(S["hout_lbl"], min_value=1.0, value=10.0, help=S["hout_help"], key="h_ext")
 
@@ -1142,9 +1148,12 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         st.success(S["kv_res"].format(kv=kv_Q_/math.sqrt(kv_dP_*kv_r_/1000)))
 
     # --- FCV POSITION SELECTOR ---
-    pos_options = ['pump', 'upstream', 'downstream']
-    pos_labels = [S["fcv_pos_pump"], S["fcv_pos_up"], S["fcv_pos_down"]]
-    pos_idx = pos_options.index(st.session_state.get('fcv_position_sel', 'pump'))
+    pos_options = ['upstream', 'downstream']
+    pos_labels = [S["fcv_pos_up"], S["fcv_pos_down"]]
+    current_sel = st.session_state.get('fcv_position_sel', 'upstream')
+    if current_sel not in pos_options:
+        current_sel = 'upstream'
+    pos_idx = pos_options.index(current_sel)
 
     fcv_position_sel_lbl = st.radio(
         S["fcv_pos_lbl"],
@@ -1189,6 +1198,38 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     hy_mu_cP  = fc2.number_input(S["hy_mu_h"], min_value=0.01, value=25.0, help=S["hy_mu_h_h"], key="hy_mu_cP")
     hy_mu_hot = hy_mu_cP / 1000.0
     hy_qmax   = fc3.number_input(S["hy_qmax"], min_value=50.0, value=900.0, help=S["hy_qmax_h"], key="hy_qmax")
+
+    # --- FLOW METER (PERDA DE CARGA) ---
+    st.subheader(S["fm_hdr"])
+    st.caption(S["fm_help"])
+    fm_active = st.checkbox(S["fm_enable"], value=False, key="fm_active")
+    fm_pts_q = []
+    fm_pts_dp = []
+    
+    if fm_active:
+        fm_def = [(100, 0.2), (400, 1.2), (800, 4.0)]
+        fc1, fc2, fc3 = st.columns(3)
+        for j, (dq, ddp) in enumerate(fm_def):
+            with [fc1, fc2, fc3][j]:
+                st.markdown(f"**{S['pc_pt']} {j+1}**")
+                q_j = st.number_input(S["fm_q"], value=float(dq), min_value=0.0, key=f"fm_q_{j}")
+                dp_j = st.number_input(S["fm_dp"], value=float(ddp), min_value=0.0, key=f"fm_dp_{j}")
+                fm_pts_q.append(q_j)
+                fm_pts_dp.append(dp_j)
+
+    fm_interp = None
+    if fm_active:
+        _fq = np.array(fm_pts_q, dtype=float)
+        _fdp = np.array(fm_pts_dp, dtype=float)
+        idx = np.argsort(_fq)
+        _fq, _fdp = _fq[idx], _fdp[idx]
+
+        if len(_fq) > 0 and _fq[0] > 0:
+            _fq = np.insert(_fq, 0, 0.0)
+            _fdp = np.insert(_fdp, 0, 0.0)
+
+        fm_interp = interp1d(_fq, _fdp, kind='quadratic', fill_value='extrapolate')
+    # -----------------------------------
 
     st.subheader(S["ro_hdr"])
     st.info(S["ro_help"])
@@ -1300,12 +1341,11 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     def sys_curve_base(Q_arr, ro_kv_val, pcv_set_val):
         H = []
         for Q in Q_arr:
-            h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm, ro_kv_val, pcv_set_val)
+            h, *_ = head_loss(Q, hy_segments, hy_dz, [], hy_rho, hy_mu_hot, rug_mm, ro_kv_val, pcv_set_val, fm_interp)
             H.append(h)
         return _np2.array(H)
 
     def resolve_ctrl_valves(op_pct):
-        # Single FCV: look up Kv at the requested opening and return as a one-element list
         _ops_c, _kvs_c, _interp_c = fcv_curve_data[0]
         kv_resolved = float(_np2.exp(_interp_c(op_pct)))
         return [(kv_resolved, None)]
@@ -1314,7 +1354,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         cv_ov = resolve_ctrl_valves(op_pct)
         H = []
         for Q in Q_arr:
-            h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm, ro_kv_val, pcv_set_val)
+            h, *_ = head_loss(Q, hy_segments, hy_dz, cv_ov, hy_rho, hy_mu_hot, rug_mm, ro_kv_val, pcv_set_val, fm_interp)
             H.append(h)
         return _np2.array(H)
 
@@ -1387,9 +1427,6 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         name=S["pump_fmin"].format(f=pc_fmin), line=dict(color='#FFB300', width=2.5)))
     fh.add_trace(go.Scatter(x=Qmx, y=Hmx, mode='lines',
         name=S["pump_fmax"].format(f=pc_fmax), line=dict(color='#CC0000', width=2.5)))
-    if pc_freq0 not in (pc_fmin, pc_fmax):
-        fh.add_trace(go.Scatter(x=Qnom, y=Hnom, mode='lines',
-            name=S["pump_nom"].format(f=pc_freq0), line=dict(color='orangered', width=2, dash='dot')))
 
     fh.add_trace(go.Scatter(x=Qusr, y=Husr, mode='lines',
         name=S["pump_usr"].format(f=user_freq), line=dict(color='#9C27B0', width=2.5, dash='dashdot')))
@@ -1404,7 +1441,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     op_valve_colors = {lbl_ref1: '#e67e00', lbl_usr: '#8B008B', lbl_ref3: '#006400'}
     op_speed_symbols = {'fmin': ('triangle-down', pc_fmin), 'fnom': ('circle', pc_freq0), 'fmax': ('triangle-up', pc_fmax)}
 
-    for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
+    for speed_key, ops_tuple in [('fmin', ops_fmin), ('fmax', ops_fmax)]:
         sym, freq_val = op_speed_symbols[speed_key]
         
         items_to_plot = [(lbl_usr, ops_tuple[1])]
@@ -1422,7 +1459,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
                 ))
 
     if show_dp:
-        for speed_key, ops_tuple in [('fmin', ops_fmin), ('fnom', ops_fnom), ('fmax', ops_fmax)]:
+        for speed_key, ops_tuple in [('fmin', ops_fmin), ('fmax', ops_fmax)]:
             items_to_annotate = [(lbl_usr, ops_tuple[1])]
             if show_ref:
                 items_to_annotate = [(lbl_ref1, ops_tuple[0])] + items_to_annotate + [(lbl_ref3, ops_tuple[2])]
@@ -1540,6 +1577,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
             'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
             'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref, 'show_dp': show_dp,
+            'tank_min_level': tank_min_level,
+            'fm_active': fm_active,
+            'fm_pts_q': fm_pts_q if fm_active else [],
+            'fm_pts_dp': fm_pts_dp if fm_active else [],
             'ro_active': ro_active,
             'ro_D': ro_D if ro_active else None,
             'ro_d': ro_d if ro_active else None,
