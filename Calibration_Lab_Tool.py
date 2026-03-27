@@ -1480,7 +1480,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             col = '#9C27B0'
             sz = 16
             lw = 2
-            txt = f"  <b>Combinação @ {freq_val}Hz / {user_op}%</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"
+            txt = f"  <b>Rated @ {freq_val}Hz / {user_op}%</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"
         else:
             sz = 13
             lw = 1.5
