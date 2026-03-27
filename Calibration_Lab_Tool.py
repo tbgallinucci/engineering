@@ -202,7 +202,7 @@ TR = {
         "op_freq_lbl": "Frequência da bomba (Hz)",
         "op_freq_help": "Deslize para ver a curva da bomba atualizar em tempo real.",
         "pump_usr": "Bomba — {f} Hz (usuário)",
-        "op_comb": "Ponto de Operação Definido",
+        "op_comb": "Ponto de Operação Rated",
         "fl_hy": "Fluido (para hidráulica)",
         "hy_rho": "Densidade (kg/m³):",
         "hy_mu_h": "Viscosidade nominal de processo (cP):",
@@ -228,7 +228,7 @@ TR = {
         "pump_nom": "Bomba — {f} Hz (nominal)",
         "pump_fmin": "Bomba — {f} Hz (mínimo)",
         "pump_fmax": "Bomba — {f} Hz (máximo)",
-        "sim_hdr": "Curva do Sistema",
+        "sim_hdr": "Curva de Operação",
         "kv_calc": "**Calculadora rápida de Kv:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "ΔP máx (bar):",
@@ -262,8 +262,9 @@ TR = {
         "cfg_overwrite_btn": "♻️ Substituir",
         "cfg_overwrite_succ": "Configuração substituída com sucesso!",
         "cfg_save_new": "Salvar como Nova",
-        "hide_ref": "👁️ Ocultar curvas de referência (Pts 1 e 3)",
+        "hide_ref": "👁️ Ocultar curvas de ref.",
         "hide_dp": "👁️ Ocultar valores de ΔP",
+        "show_opt": "👁️ Destacar Range Otimizado",
         "ro_hdr": "Orifício de Restrição (RO)",
         "ro_help": "Calcula a Perda de Carga Permanente (PPL) usando a equação ISO 5167. Esta restrição é adicionada fisicamente à curva do Base Pipe.",
         "ro_enable": "Habilitar Placa de Orifício a Jusante",
@@ -292,7 +293,7 @@ TR = {
         "csv_dp": "dP_bar",
     },
     "en": {
-        "app_title": "🏭 Calibration Lab Sizing Tool",
+        "app_title": "Calibration Lab Sizing Tool",
         "app_caption": "Parametric Sizing Tool for Closed-Loop Oil Meter Calibration Laboratory",
         "sidebar_header": "Global System Parameters",
         "fluid_sub": "Fluid",
@@ -403,7 +404,7 @@ TR = {
         "pump_nom": "Pump — {f} Hz (nominal)",
         "pump_fmin": "Pump — {f} Hz (min)",
         "pump_fmax": "Pump — {f} Hz (max)",
-        "sim_hdr": "System Curve Plot",
+        "sim_hdr": "Operation Curve",
         "kv_calc": "**Quick Kv calculator:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "Max ΔP (bar):",
@@ -434,11 +435,12 @@ TR = {
         "cfg_empty": "No saved configs.",
         "cfg_overwrite": "Overwrite Existing",
         "cfg_overwrite_sel": "Select configuration to overwrite:",
-        "cfg_overwrite_btn": "Overwrite",
+        "cfg_overwrite_btn": "♻️ Overwrite",
         "cfg_overwrite_succ": "Configuration overwritten successfully!",
         "cfg_save_new": "Save as New",
-        "hide_ref": "👁️ Hide reference curves (Pts 1 & 3)",
+        "hide_ref": "👁️ Hide reference curves",
         "hide_dp": "👁️ Hide ΔP values",
+        "show_opt": "👁️ Highlight Optimized Range",
         "ro_hdr": "Restriction Orifice (RO)",
         "ro_help": "Calculates Permanent Pressure Loss (PPL) using the ISO 5167 equation. This restriction is physically added to the Base Pipe curve.",
         "ro_enable": "Enable Downstream Orifice Plate",
@@ -605,50 +607,57 @@ def generate_ops_csv(hy_data, S):
     fcv_pos = hy_data.get('fcv_position', 'upstream')
     tank_lvl = hy_data.get('tank_min_level', 0.0)
     
-    freqs = [
-        (hy_data['pc_fmin'], hy_data['ops_fmin_pts']),
-        (hy_data['pc_freq0'], hy_data['ops_fnom_pts']),
-        (hy_data['pc_fmax'], hy_data['ops_fmax_pts'])
+    # Restringe exportação estritamente a estes 5 pontos de interesse
+    points_to_export = [
+        # (Frequência, Abertura, Ponto(Q, H))
+        (hy_data['pc_fmin'], hy_data['op_ref1_val'], hy_data['ops_fmin_pts'][0]), # VFD min x abert min
+        (hy_data['pc_fmin'], hy_data['user_op'],     hy_data['ops_fmin_pts'][1]), # VFD min x abert setada
+        (hy_data['user_freq'], hy_data['user_op'],   hy_data['op_usr_custom']),   # VFD setado x abert setada
+        (hy_data['pc_fmax'], hy_data['user_op'],     hy_data['ops_fmax_pts'][1]), # VFD max x abert setada
+        (hy_data['pc_fmax'], hy_data['op_ref3_val'], hy_data['ops_fmax_pts'][2]), # VFD max x abert max
     ]
     
     rows = []
-    for freq, ops in freqs:
-        items = [
-            (hy_data['op_ref1_val'], ops[0]),
-            (hy_data['user_op'], ops[1]),
-            (hy_data['op_ref3_val'], ops[2])
-        ]
-        seen_ops = set()
-        for op_val, (q, h) in items:
-            if q is not None and op_val not in seen_ops:
-                seen_ops.add(op_val)
-                h_base = float(cs_sys_base(q))
-                
-                # 1. dP da FCV
-                h_dp_fcv = h - h_base
-                dp = h_dp_fcv * rho * 9.81 / 100000.0
-                
-                # 2. Pressões de Entrada e Saída
-                h_downstream = tank_lvl
-                
-                if fcv_pos == 'upstream':
-                    if hy_data.get('ro_active') and hy_data.get('kv_ro'):
-                        h_downstream += (q / hy_data['kv_ro'])**2 * (100.0 / 9.81)
-                    if hy_data.get('pcv_active') and hy_data.get('pcv_setpoint_bar'):
-                        h_downstream += (hy_data['pcv_setpoint_bar'] * 100000.0) / (rho * 9.81)
-                
-                p_out = h_downstream * rho * 9.81 / 100000.0
-                p_in = p_out + dp
-                
-                rows.append({
-                    S["csv_freq"]: freq,
-                    S["csv_op"]: op_val,
-                    S["csv_q"]: round(q, 2),
-                    S["csv_h"]: round(h, 2),
-                    S["csv_pin"]: round(p_in, 2),
-                    S["csv_pout"]: round(p_out, 2),
-                    S["csv_dp"]: round(dp, 2)
-                })
+    seen_pts = set()
+    for freq, op_val, pt in points_to_export:
+        if pt is None or pt[0] is None:
+            continue
+            
+        q, h = pt
+        
+        # Previne linhas duplicadas se o usuário colocar sliders nos extremos (ex: VFD setado = VFD min)
+        pt_sig = (round(freq, 1), round(op_val, 1))
+        if pt_sig in seen_pts:
+            continue
+        seen_pts.add(pt_sig)
+
+        h_base = float(cs_sys_base(q))
+        
+        # 1. dP da FCV
+        h_dp_fcv = h - h_base
+        dp = h_dp_fcv * rho * 9.81 / 100000.0
+        
+        # 2. Pressões de Entrada e Saída
+        h_downstream = tank_lvl
+        
+        if fcv_pos == 'upstream':
+            if hy_data.get('ro_active') and hy_data.get('kv_ro'):
+                h_downstream += (q / hy_data['kv_ro'])**2 * (100.0 / 9.81)
+            if hy_data.get('pcv_active') and hy_data.get('pcv_setpoint_bar'):
+                h_downstream += (hy_data['pcv_setpoint_bar'] * 100000.0) / (rho * 9.81)
+        
+        p_out = h_downstream * rho * 9.81 / 100000.0
+        p_in = p_out + dp
+        
+        rows.append({
+            S["csv_freq"]: freq,
+            S["csv_op"]: op_val,
+            S["csv_q"]: round(q, 2),
+            S["csv_h"]: round(h, 2),
+            S["csv_pin"]: round(p_in, 2),
+            S["csv_pout"]: round(p_out, 2),
+            S["csv_dp"]: round(dp, 2)
+        })
                 
     df = pd.DataFrame(rows)
     if not df.empty:
@@ -1312,13 +1321,15 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     st.markdown("---")
     st.subheader(S["sim_hdr"])
     
-    col_toggles1, col_toggles2 = st.columns(2)
+    col_toggles1, col_toggles2, col_toggles3 = st.columns(3)
     with col_toggles1:
         hide_ref_curves = st.checkbox(S["hide_ref"], value=False, key="hide_ref_curves")
         show_ref = not hide_ref_curves
     with col_toggles2:
         hide_dp_lines = st.checkbox(S["hide_dp"], value=False, key="hide_dp_lines")
         show_dp = not hide_dp_lines
+    with col_toggles3:
+        show_opt_range = st.checkbox(S["show_opt"], value=False, key="show_opt_range")
 
     col_sl1, col_sl2 = st.columns(2)
     with col_sl1:
@@ -1439,77 +1450,103 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     ops_fmax = ops_for_freq(cs_fmax, Qmax_mx)
 
     op_valve_colors = {lbl_ref1: '#e67e00', lbl_usr: '#8B008B', lbl_ref3: '#006400'}
-    op_speed_symbols = {'fmin': ('triangle-down', pc_fmin), 'fnom': ('circle', pc_freq0), 'fmax': ('triangle-up', pc_fmax)}
 
-    for speed_key, ops_tuple in [('fmin', ops_fmin), ('fmax', ops_fmax)]:
-        sym, freq_val = op_speed_symbols[speed_key]
-        
-        items_to_plot = [(lbl_usr, ops_tuple[1])]
-        if show_ref:
-            items_to_plot = [(lbl_ref1, ops_tuple[0])] + items_to_plot + [(lbl_ref3, ops_tuple[2])]
+    # -------------------------------------------------------------------------
+    # Filtro focado nos 5 pontos exatos para anotações e marcadores do gráfico
+    # -------------------------------------------------------------------------
+    pts_interesse = [
+        (lbl_ref1, pc_fmin,   ops_fmin[0],   'triangle-down'), # VFD min x abert min
+        (lbl_usr,  pc_fmin,   ops_fmin[1],   'triangle-down'), # VFD min x abert setada
+        (lbl_usr,  user_freq, op_usr_custom, 'star'),          # VFD setado x abert setada
+        (lbl_usr,  pc_fmax,   ops_fmax[1],   'triangle-up'),   # VFD max x abert setada
+        (lbl_ref3, pc_fmax,   ops_fmax[2],   'triangle-up')    # VFD max x abert max
+    ]
+
+    for valve_lbl, freq_val, pt_tuple, sym in pts_interesse:
+        if pt_tuple is None or pt_tuple[0] is None:
+            continue
             
-        for valve_lbl, (q_op, h_op) in items_to_plot:
-            if q_op is not None:
-                col = op_valve_colors.get(valve_lbl, 'black')
-                fh.add_trace(go.Scatter(
-                    x=[q_op], y=[h_op], mode='markers+text',
-                    marker=dict(color=col, size=13, symbol=sym, line=dict(color='white', width=1.5)),
-                    text=[f"  <b>{valve_lbl} @ {freq_val}Hz</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"],
-                    textfont=dict(color=col, size=11), textposition='middle right', showlegend=False
-                ))
+        q_op, h_op = pt_tuple
+        
+        # Oculta os pontos de referência se o checkbox de ocultar estiver ativado
+        if not show_ref and valve_lbl in (lbl_ref1, lbl_ref3):
+            continue
 
-    if show_dp:
-        for speed_key, ops_tuple in [('fmin', ops_fmin), ('fmax', ops_fmax)]:
-            items_to_annotate = [(lbl_usr, ops_tuple[1])]
-            if show_ref:
-                items_to_annotate = [(lbl_ref1, ops_tuple[0])] + items_to_annotate + [(lbl_ref3, ops_tuple[2])]
-                
-            for valve_lbl, (q_op, h_op) in items_to_annotate:
-                if q_op is not None:
-                    h_base_op = float(cs_sys_base(q_op))
-                    dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0
+        col = op_valve_colors.get(valve_lbl, 'black')
+        
+        # Destaca visualmente o ponto combinado interativo (VFD setado x Abertura setada)
+        is_custom = (sym == 'star')
+        if is_custom:
+            col = '#9C27B0'
+            sz = 16
+            lw = 2
+            txt = f"  <b>Combinação @ {freq_val}Hz / {user_op}%</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"
+        else:
+            sz = 13
+            lw = 1.5
+            txt = f"  <b>{valve_lbl} @ {freq_val}Hz</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"
 
-                    fh.add_shape(type="line",
-                        x0=q_op, y0=h_base_op, x1=q_op, y1=h_op,
-                        line=dict(color=op_valve_colors.get(valve_lbl, 'black'), width=2, dash="dot"),
-                        opacity=0.6
-                    )
-
-                    fh.add_annotation(
-                        x=q_op, y=(h_op + h_base_op)/2,
-                        text=f"ΔP={dP_bar:.1f} bar",
-                        showarrow=False,
-                        xanchor="left",
-                        xshift=8,
-                        font=dict(color=op_valve_colors.get(valve_lbl, 'black'), size=11, family="Arial"),
-                        bgcolor="rgba(255,255,255,0.7)"
-                    )
-
-    # --- Ponto de Operação Combinado (Bomba Interativa x Sistema Interativo) ---
-    if q_usr_cust is not None:
+        # Adiciona o Marcador
         fh.add_trace(go.Scatter(
-            x=[q_usr_cust], y=[h_usr_cust], mode='markers+text',
-            marker=dict(color='#9C27B0', size=16, symbol='star', line=dict(color='white', width=2)),
-            text=[f"  <b>Combinação @ {user_freq}Hz / {user_op}%</b><br>  Q={q_usr_cust:.0f} m³/h | H={h_usr_cust:.1f} m"],
-            textfont=dict(color='#9C27B0', size=12), textposition='middle right', showlegend=False
+            x=[q_op], y=[h_op], mode='markers+text',
+            marker=dict(color=col, size=sz, symbol=sym, line=dict(color='white', width=lw)),
+            text=[txt],
+            textfont=dict(color=col, size=11 if not is_custom else 12), 
+            textposition='middle right', showlegend=False
         ))
         
+        # Adiciona as linhas e anotações de Delta P SOMENTE para estes 5 pontos
         if show_dp:
-            h_base_op_cust = float(cs_sys_base(q_usr_cust))
-            dP_bar_cust = (h_usr_cust - h_base_op_cust) * hy_rho * 9.81 / 100000.0
+            h_base_op = float(cs_sys_base(q_op))
+            dP_bar = (h_op - h_base_op) * hy_rho * 9.81 / 100000.0
 
             fh.add_shape(type="line",
-                x0=q_usr_cust, y0=h_base_op_cust, x1=q_usr_cust, y1=h_usr_cust,
-                line=dict(color='#9C27B0', width=2.5, dash="dot"), opacity=0.8
+                x0=q_op, y0=h_base_op, x1=q_op, y1=h_op,
+                line=dict(color=col, width=2.5 if is_custom else 2, dash="dot"),
+                opacity=0.8 if is_custom else 0.6
             )
             fh.add_annotation(
-                x=q_usr_cust, y=(h_usr_cust + h_base_op_cust)/2,
-                text=f"ΔP={dP_bar_cust:.1f} bar",
+                x=q_op, y=(h_op + h_base_op)/2,
+                text=f"ΔP={dP_bar:.1f} bar",
                 showarrow=False, xanchor="left", xshift=8,
-                font=dict(color='#9C27B0', size=11, family="Arial", weight="bold"),
-                bgcolor="rgba(255,255,255,0.8)"
+                font=dict(color=col, size=11, family="Arial", weight="bold" if is_custom else "normal"),
+                bgcolor="rgba(255,255,255,0.8)" if is_custom else "rgba(255,255,255,0.7)"
             )
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+
+    # --- HIGHLIGHT RANGE OTIMIZADO ---
+    if show_opt_range:
+        Qa, Ha = ops_fmin[0] # Ponto A (FCV min x VFD min)
+        Qb, Hb = ops_fmin[1] # Ponto B (FCV usr x VFD min)
+        Qc, Hc = ops_fmax[1] # Ponto C (FCV usr x VFD max)
+        Qd, Hd = ops_fmax[2] # Ponto D (FCV max x VFD max)
+
+        # Só traça se a bomba conseguir atingir essas vazões e as interseções existirem
+        if all(v is not None for v in [Qa, Qb, Qc, Qd]):
+            mask1 = (Qmin >= Qa) & (Qmin <= Qb)
+            q_path1, h_path1 = Qmin[mask1], Hmin[mask1]
+            
+            mask2 = (Qr >= Qb) & (Qr <= Qc)
+            q_path2, h_path2 = Qr[mask2], H_sys_usr[mask2]
+            
+            mask3 = (Qmx >= Qc) & (Qmx <= Qd)
+            q_path3, h_path3 = Qmx[mask3], Hmx[mask3]
+            
+            q_opt = np.concatenate([[Qa], q_path1, [Qb], q_path2, [Qc], q_path3, [Qd]])
+            h_opt = np.concatenate([[Ha], h_path1, [Hb], h_path2, [Hc], h_path3, [Hd]])
+            
+            fh.add_trace(go.Scatter(
+                x=q_opt, y=h_opt, mode='lines',
+                name='Range Otimizado' if lang == 'pt' else 'Optimized Range',
+                line=dict(color='rgba(10, 200, 50, 0.8)', width=6),
+                zorder=1
+            ))
+            fh.add_trace(go.Scatter(
+                x=[Qa, Qd], y=[Ha, Hd], mode='markers', showlegend=False,
+                marker=dict(color='rgba(10, 200, 50, 1)', size=10, symbol='diamond'),
+                zorder=2
+            ))
+    # ---------------------------------
 
     fh.add_vline(x=hy_qmax, line_dash="dot", line_color="gray", annotation_text=f"Q={hy_qmax:.0f} m³/h", annotation_position="top right")
 
@@ -1570,11 +1607,13 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         st.session_state['hy_data'] = {
             'hy_rho': hy_rho, 'hy_mu_cP': hy_mu_cP, 'hy_qmax': hy_qmax,
             'pc_freq0': pc_freq0, 'pc_fmin': pc_fmin, 'pc_fmax': pc_fmax,
+            'user_freq': user_freq,
             'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
             'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys_ref1': H_sys_ref1, 'H_sys_ref3': H_sys_ref3, 'H_sys_usr': H_sys_usr,
             'user_op': user_op, 'op_ref1_val': op_ref1, 'op_ref3_val': op_ref3,
             'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
+            'op_usr_custom': op_usr_custom,
             'y_max': y_max, 'segments': [{k: v for k, v in s.items()} for s in hy_segments],
             'rug_mm': rug_mm, 'dz_glob': dz_glob, 'show_ref': show_ref, 'show_dp': show_dp,
             'tank_min_level': tank_min_level,
@@ -1736,9 +1775,9 @@ Ferramenta para dimensionamento paramétrico de laboratório de calibração de 
 
 | Aba | Função |
 |-----|--------|
-| Simulação Térmica | Aquecimento e janela de calibração |
-| Curva do Sistema | Perdas de carga, curvas H×Q quente e fria |
-| BOM | Lista de materiais exportável em CSV |
+| 🌡️ Simulação Térmica | Aquecimento e janela de calibração |
+| 💧 Curva do Sistema | Perdas de carga, curvas H×Q quente e fria |
+| 📋 BOM | Lista de materiais exportável em CSV |
 
 ---
 
@@ -1865,9 +1904,9 @@ Parametric sizing tool for a closed-loop oil meter calibration laboratory
 
 | Tab | Function |
 |-----|----------|
-| Thermal Simulation | Heating and calibration window |
-| System Curve | Head loss, hot & cold H×Q curves |
-| BOM | Exportable bill of materials (CSV) |
+| 🌡️ Thermal Simulation | Heating and calibration window |
+| 💧 System Curve | Head loss, hot & cold H×Q curves |
+| 📋 BOM | Exportable bill of materials (CSV) |
 
 ---
 
