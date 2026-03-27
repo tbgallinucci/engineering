@@ -108,7 +108,6 @@ def overwrite_config_callback():
     name = st.session_state.get("overwrite_cfg_name")
     if not name:
         return
-    # Temporarily set the name key so save_config_callback writes to the right slot
     st.session_state["new_cfg_name"] = name
     save_config_callback()
 
@@ -194,6 +193,10 @@ TR = {
         "kv_op_j": "Abertura (%)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
         "ctrl_v": "Válvula de Controle (FCV)",
+        "fcv_pos_lbl": "Posição Topológica da FCV:",
+        "fcv_pos_pump": "Na descarga da bomba (Início do loop)",
+        "fcv_pos_up": "No final, ANTES da placa (RO) e PCV",
+        "fcv_pos_down": "No final, DEPOIS da placa (RO) e PCV (Descarga p/ tanque)",
         "op_lbl": "Abertura da válvula (%)",
         "op_help": "Deslize para ver a curva do sistema atualizar em tempo real.",
         "op_freq_lbl": "Frequência da bomba (Hz)",
@@ -360,6 +363,10 @@ TR = {
         "kv_op_j": "Opening (%)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
         "ctrl_v": "Control Valve (FCV)",
+        "fcv_pos_lbl": "FCV Topological Position:",
+        "fcv_pos_pump": "At pump discharge (Start of loop)",
+        "fcv_pos_up": "At the end, BEFORE Orifice (RO) and PCV",
+        "fcv_pos_down": "At the end, AFTER Orifice (RO) and PCV (Tank discharge)",
         "op_lbl": "Valve opening (%)",
         "op_help": "Slide to see the chart update in real-time.",
         "op_freq_lbl": "Pump frequency (Hz)",
@@ -543,7 +550,7 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
             area_ratio = (d / seg['d_up']) ** 2
             K_red = 0.5 * (1.0 - area_ratio) * seg['red_n']
         elif seg.get('red_n', 0) > 0 and seg.get('d_up', 0) < d:
-            # Expansão súbita (Corrigido referencial de velocidade para o tubo maior d)
+            # Expansão súbita
             beta_sq = (seg['d_up'] / d) ** 2
             K_red = (((1.0 - beta_sq) ** 2) / (beta_sq ** 2)) * seg['red_n']
             
@@ -555,10 +562,10 @@ def head_loss(Q, segments, dz, ctrl_valves, rho_f, mu_f, rug_global_mm, kv_ro=No
         H_ro = (Q / kv_ro)**2 * (100.0 / 9.81)
         Hl_total += H_ro
 
-    # Single FCV: ctrl_valves contains at most one entry (Kv, ignored_op)
+    # Single FCV: ctrl_valves contains at most one entry
     Hc = 0.0
     if ctrl_valves:
-        Kv_fcv = ctrl_valves[0][0]   # first (and only) FCV, Kv already at desired opening
+        Kv_fcv = ctrl_valves[0][0]
         if Kv_fcv > 0:
             Hc = (Q / Kv_fcv)**2 * (rho_f / 1000.0) * 1e5 / (rho_f * 9.81)
 
@@ -578,6 +585,7 @@ def generate_ops_csv(hy_data, S):
     Qr = hy_data['Qr']
     cs_sys_base = CubicSpline(Qr, hy_data['H_sys_base'], extrapolate=True)
     rho = hy_data['hy_rho']
+    fcv_pos = hy_data.get('fcv_position', 'pump')
     
     freqs = [
         (hy_data['pc_fmin'], hy_data['ops_fmin_pts']),
@@ -598,9 +606,32 @@ def generate_ops_csv(hy_data, S):
                 seen_ops.add(op_val)
                 h_base = float(cs_sys_base(q))
                 
-                p_in = h * rho * 9.81 / 100000.0
-                p_out = h_base * rho * 9.81 / 100000.0
-                dp = p_in - p_out
+                # 1. dP da FCV
+                h_dp_fcv = h - h_base
+                dp = h_dp_fcv * rho * 9.81 / 100000.0
+                
+                # 2. Pressões de Entrada e Saída (Pin e Pout) baseadas na Posição Topológica
+                p_out = 0.0
+                
+                if fcv_pos == 'pump':
+                    # FCV colada na bomba (Sofre contrapressão de TODO o resto do sistema)
+                    p_out = h_base * rho * 9.81 / 100000.0
+                else:
+                    # FCV no final do loop
+                    h_downstream = 0.0
+                    
+                    if fcv_pos == 'upstream':
+                        # Se estiver antes da RO/PCV, sofre a contrapressão destes elementos
+                        if hy_data.get('ro_active') and hy_data.get('kv_ro'):
+                            h_downstream += (q / hy_data['kv_ro'])**2 * (100.0 / 9.81)
+                        if hy_data.get('pcv_active') and hy_data.get('pcv_setpoint_bar'):
+                            h_downstream += (hy_data['pcv_setpoint_bar'] * 100000.0) / (rho * 9.81)
+                    
+                    # Se fcv_pos == 'downstream', h_downstream continua 0 (Descarrega livre no tanque)
+                    
+                    p_out = h_downstream * rho * 9.81 / 100000.0
+                
+                p_in = p_out + dp
                 
                 rows.append({
                     S["csv_freq"]: freq,
@@ -1110,6 +1141,22 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         kv_r_  = kk3.number_input(S["kv_rho"], value=850.0, key="kvrho")
         st.success(S["kv_res"].format(kv=kv_Q_/math.sqrt(kv_dP_*kv_r_/1000)))
 
+    # --- FCV POSITION SELECTOR ---
+    pos_options = ['pump', 'upstream', 'downstream']
+    pos_labels = [S["fcv_pos_pump"], S["fcv_pos_up"], S["fcv_pos_down"]]
+    pos_idx = pos_options.index(st.session_state.get('fcv_position_sel', 'pump'))
+
+    fcv_position_sel_lbl = st.radio(
+        S["fcv_pos_lbl"],
+        options=pos_labels,
+        index=pos_idx,
+        key="fcv_pos_radio"
+    )
+    fcv_position = pos_options[pos_labels.index(fcv_position_sel_lbl)]
+    st.session_state['fcv_position_sel'] = fcv_position
+    st.divider()
+    # -----------------------------
+
     fcv_curve_data = []
 
     st.caption(S["kv_curve_help"])
@@ -1502,6 +1549,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'kv_ro': kv_ro_active,
             'pcv_active': pcv_active,
             'pcv_setpoint_bar': pcv_setpoint_bar if pcv_active else None,
+            'fcv_position': fcv_position,
         }
 
 # ─────────────────────────────────────────────────────────────────────────────
