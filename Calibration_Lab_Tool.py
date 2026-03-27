@@ -196,7 +196,7 @@ TR = {
         "ctrl_v": "Válvula de Controle (FCV)",
         "fcv_pos_lbl": "Posição Topológica da FCV:",
         "fcv_pos_up": "No final, ANTES da placa (RO) e PCV",
-        "fcv_pos_down": "No final, DEPOIS da placa (RO) e PCV (Descarga p/ tanque)",
+        "fcv_pos_down": "No final, DEPOIS da placa (RO) e ANTES da PCV (Descarga p/ tanque)",
         "op_lbl": "Abertura da válvula (%)",
         "op_help": "Deslize para ver a curva do sistema atualizar em tempo real.",
         "op_freq_lbl": "Frequência da bomba (Hz)",
@@ -372,7 +372,7 @@ TR = {
         "ctrl_v": "Control Valve (FCV)",
         "fcv_pos_lbl": "FCV Topological Position:",
         "fcv_pos_up": "At the end, BEFORE Orifice (RO) and PCV",
-        "fcv_pos_down": "At the end, AFTER Orifice (RO) and PCV (Tank discharge)",
+        "fcv_pos_down": "At the end, AFTER Orifice (RO) and BEFORE PCV (Tank discharge)",
         "op_lbl": "Valve opening (%)",
         "op_help": "Slide to see the chart update in real-time.",
         "op_freq_lbl": "Pump frequency (Hz)",
@@ -641,8 +641,14 @@ def generate_ops_csv(hy_data, S):
         h_downstream = tank_lvl
         
         if fcv_pos == 'upstream':
+            # FCV is BEFORE the RO and BEFORE the PCV
             if hy_data.get('ro_active') and hy_data.get('kv_ro'):
                 h_downstream += (q / hy_data['kv_ro'])**2 * (100.0 / 9.81)
+            if hy_data.get('pcv_active') and hy_data.get('pcv_setpoint_bar'):
+                h_downstream += (hy_data['pcv_setpoint_bar'] * 100000.0) / (rho * 9.81)
+                
+        elif fcv_pos == 'downstream':
+            # FCV is AFTER the RO, but BEFORE the PCV
             if hy_data.get('pcv_active') and hy_data.get('pcv_setpoint_bar'):
                 h_downstream += (hy_data['pcv_setpoint_bar'] * 100000.0) / (rho * 9.81)
         
