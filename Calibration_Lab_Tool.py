@@ -116,9 +116,9 @@ def overwrite_config_callback():
 # ─────────────────────────────────────────────────────────────────────────────
 TR = {
     "pt": {
-        "app_title": "🏭 Calibration Lab Sizing Tool",
+        "app_title": "Calibration Lab Sizing Tool",
         "app_caption": "Ferramenta Paramétrica de Dimensionamento para Laboratório de Calibração de Medidores de Óleo em Loop Fechado",
-        "sidebar_header": "⚙️ Parâmetros Globais do Sistema",
+        "sidebar_header": "Parâmetros Globais do Sistema",
         "fluid_sub": "Fluido",
         "manual_cb": "Inserir propriedades manualmente",
         "density": "Densidade (kg/m³):",
@@ -135,11 +135,11 @@ TR = {
         "eps_help": "Aço carbono oxidado ≈ 0.7–0.9 | Aço polido ≈ 0.05–0.1",
         "hout_lbl": "Coef. convecção externa (W/m²·K):",
         "hout_help": "Convecção natural em ar ≈ 5–15 W/m²·K",
-        "tab_th": "🌡️ Simulação Térmica",
-        "tab_hy": "💧 Curva do Sistema",
-        "tab_bm": "📋 Lista de Materiais (BOM)",
-        "tab_mn": "📖 Manual / Memorial",
-        "th_header": "🌡️ Simulação Térmica – Aquecimento e Calibração",
+        "tab_th": "Simulação Térmica",
+        "tab_hy": "Curva do Sistema",
+        "tab_bm": "Lista de Materiais (BOM)",
+        "tab_mn": "Manual / Memorial",
+        "th_header": "Simulação Térmica – Aquecimento e Calibração",
         "sys_data": "Dados do Sistema",
         "vol": "Volume total de fluido no sistema (m³):",
         "tamb": "Temperatura ambiente (°C):",
@@ -174,7 +174,7 @@ TR = {
         "tr_heat": "Fase Aquecimento",
         "tr_calib": "Fase Calibração",
         "cw_lbl": "Janela de Calibração",
-        "hy_header": "💧 Curva do Sistema – Hidráulica",
+        "hy_header": "Curva do Sistema – Hidráulica",
         "hy_pipe": "Parâmetros da Tubulação",
         "hy_d": "Diâmetro interno (m):",
         "hy_rug": "Rugosidade absoluta (mm):",
@@ -228,7 +228,7 @@ TR = {
         "pump_nom": "Bomba — {f} Hz (nominal)",
         "pump_fmin": "Bomba — {f} Hz (mínimo)",
         "pump_fmax": "Bomba — {f} Hz (máximo)",
-        "sim_hdr": "🎛️ Curva do Sistema",
+        "sim_hdr": "Curva do Sistema",
         "kv_calc": "**Calculadora rápida de Kv:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "ΔP máx (bar):",
@@ -264,7 +264,7 @@ TR = {
         "cfg_save_new": "Salvar como Nova",
         "hide_ref": "👁️ Ocultar curvas de referência (Pts 1 e 3)",
         "hide_dp": "👁️ Ocultar valores de ΔP",
-        "ro_hdr": "🕳️ Orifício de Restrição (RO)",
+        "ro_hdr": "Orifício de Restrição (RO)",
         "ro_help": "Calcula a Perda de Carga Permanente (PPL) usando a equação ISO 5167. Esta restrição é adicionada fisicamente à curva do Base Pipe.",
         "ro_enable": "Habilitar Placa de Orifício a Jusante",
         "ro_D_lbl": "Diâmetro interno do tubo D (m):",
@@ -273,11 +273,11 @@ TR = {
         "ro_beta": "Razão Beta (β): {beta:.3f}",
         "ro_dp_calc": "ΔP Permanente Calculado: {dp:.2f} bar",
         "ro_kv_res": "Kv equivalente do orifício: {kv:.1f} m³/h·bar⁰·⁵",
-        "pcv_hdr": "🎛️ Válvula Reguladora de Contrapressão (PCV)",
+        "pcv_hdr": "Válvula Reguladora de Contrapressão (PCV)",
         "pcv_enable": "Habilitar PCV a jusante da FCV",
         "pcv_set": "Setpoint da PCV (bar):",
         "pcv_head": "Altura manométrica imposta pela PCV: **{h:.1f} m**",
-        "fm_hdr": "📊 Medidor de Vazão (Perda de Carga)",
+        "fm_hdr": "Medidor de Vazão (Perda de Carga)",
         "fm_enable": "Habilitar medidor de vazão",
         "fm_help": "Insira 3 pontos da curva do fabricante (Vazão vs ΔP).",
         "fm_q": "Vazão (m³/h):",
@@ -294,7 +294,7 @@ TR = {
     "en": {
         "app_title": "🏭 Calibration Lab Sizing Tool",
         "app_caption": "Parametric Sizing Tool for Closed-Loop Oil Meter Calibration Laboratory",
-        "sidebar_header": "⚙️ Global System Parameters",
+        "sidebar_header": "Global System Parameters",
         "fluid_sub": "Fluid",
         "manual_cb": "Enter fluid properties manually",
         "density": "Density (kg/m³):",
@@ -311,11 +311,11 @@ TR = {
         "eps_help": "Oxidized carbon steel ≈ 0.7–0.9 | Polished steel ≈ 0.05–0.1",
         "hout_lbl": "External convection coeff. (W/m²·K):",
         "hout_help": "Natural convection in air ≈ 5–15 W/m²·K",
-        "tab_th": "🌡️ Thermal Simulation",
-        "tab_hy": "💧 System Curve",
-        "tab_bm": "📋 Bill of Materials (BOM)",
-        "tab_mn": "📖 Manual / Calc. Memo",
-        "th_header": "🌡️ Thermal Simulation – Heating & Calibration",
+        "tab_th": "Thermal Simulation",
+        "tab_hy": "System Curve",
+        "tab_bm": "Bill of Materials (BOM)",
+        "tab_mn": "Manual / Calc. Memo",
+        "th_header": "Thermal Simulation – Heating & Calibration",
         "sys_data": "System Data",
         "vol": "Total fluid volume in system (m³):",
         "tamb": "Ambient temperature (°C):",
@@ -349,7 +349,7 @@ TR = {
         "tr_heat": "Heating Phase",
         "tr_calib": "Calibration Phase",
         "cw_lbl": "Calibration Window",
-        "hy_header": "💧 System Curve – Hydraulics",
+        "hy_header": "System Curve – Hydraulics",
         "hy_pipe": "Piping Parameters",
         "hy_d": "Inner diameter (m):",
         "hy_rug": "Absolute roughness (mm):",
@@ -403,7 +403,7 @@ TR = {
         "pump_nom": "Pump — {f} Hz (nominal)",
         "pump_fmin": "Pump — {f} Hz (min)",
         "pump_fmax": "Pump — {f} Hz (max)",
-        "sim_hdr": "🎛️ System Curve Plot",
+        "sim_hdr": "System Curve Plot",
         "kv_calc": "**Quick Kv calculator:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "Max ΔP (bar):",
@@ -434,12 +434,12 @@ TR = {
         "cfg_empty": "No saved configs.",
         "cfg_overwrite": "Overwrite Existing",
         "cfg_overwrite_sel": "Select configuration to overwrite:",
-        "cfg_overwrite_btn": "♻️ Overwrite",
+        "cfg_overwrite_btn": "Overwrite",
         "cfg_overwrite_succ": "Configuration overwritten successfully!",
         "cfg_save_new": "Save as New",
         "hide_ref": "👁️ Hide reference curves (Pts 1 & 3)",
         "hide_dp": "👁️ Hide ΔP values",
-        "ro_hdr": "🕳️ Restriction Orifice (RO)",
+        "ro_hdr": "Restriction Orifice (RO)",
         "ro_help": "Calculates Permanent Pressure Loss (PPL) using the ISO 5167 equation. This restriction is physically added to the Base Pipe curve.",
         "ro_enable": "Enable Downstream Orifice Plate",
         "ro_D_lbl": "Pipe internal diameter D (m):",
@@ -448,11 +448,11 @@ TR = {
         "ro_beta": "Beta Ratio (β): {beta:.3f}",
         "ro_dp_calc": "Calculated Permanent ΔP: {dp:.2f} bar",
         "ro_kv_res": "Equivalent orifice Kv: {kv:.1f} m³/h·bar⁰·⁵",
-        "pcv_hdr": "🎛️ Backpressure Valve (PCV)",
+        "pcv_hdr": "Backpressure Valve (PCV)",
         "pcv_enable": "Enable Downstream PCV",
         "pcv_set": "PCV Setpoint (bar):",
         "pcv_head": "Head imposed by PCV: **{h:.1f} m**",
-        "fm_hdr": "📊 Flow Meter (Pressure Drop)",
+        "fm_hdr": "Flow Meter (Pressure Drop)",
         "fm_enable": "Enable flow meter",
         "fm_help": "Enter 3 points from the manufacturer curve (Flow vs ΔP).",
         "fm_q": "Flow (m³/h):",
@@ -1736,9 +1736,9 @@ Ferramenta para dimensionamento paramétrico de laboratório de calibração de 
 
 | Aba | Função |
 |-----|--------|
-| 🌡️ Simulação Térmica | Aquecimento e janela de calibração |
-| 💧 Curva do Sistema | Perdas de carga, curvas H×Q quente e fria |
-| 📋 BOM | Lista de materiais exportável em CSV |
+| Simulação Térmica | Aquecimento e janela de calibração |
+| Curva do Sistema | Perdas de carga, curvas H×Q quente e fria |
+| BOM | Lista de materiais exportável em CSV |
 
 ---
 
@@ -1865,9 +1865,9 @@ Parametric sizing tool for a closed-loop oil meter calibration laboratory
 
 | Tab | Function |
 |-----|----------|
-| 🌡️ Thermal Simulation | Heating and calibration window |
-| 💧 System Curve | Head loss, hot & cold H×Q curves |
-| 📋 BOM | Exportable bill of materials (CSV) |
+| Thermal Simulation | Heating and calibration window |
+| System Curve | Head loss, hot & cold H×Q curves |
+| BOM | Exportable bill of materials (CSV) |
 
 ---
 
