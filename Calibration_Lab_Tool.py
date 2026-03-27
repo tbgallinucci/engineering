@@ -1110,7 +1110,7 @@ with tab_hy:
     g1, g2, g3 = st.columns(3)
     g1.metric(S["hy_rug"], f"{rug_mm:.3f} mm")
     g2.metric(S["hy_dz"],  f"{dz_glob:.1f} m")
-    g3.metric(S["d_out"],  f"{D_outer:.4f} m  (térmica)" if lang=="pt" else f"{D_outer:.4f} m  (thermal)")
+    g3.metric(S["d_out"],  f"{D_outer:.4f} m  (média)" if lang=="pt" else f"{D_outer:.4f} m  (average)")
 
     _SEG_DEFAULTS = [
         {'d': d_inner, 'L': L_pipe, 'c90': 4, 'tee': 2, 've': 3, 'red_n': 0, 'd_up': 0.30},
