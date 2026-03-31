@@ -190,14 +190,21 @@ TR = {
         "fittings_help": "**Conexões e válvulas de bloqueio** *(perdas localizadas — método K)*\n\n| Componente | K |\n|---|---|\n| Curva 90° | 0,30 |\n| Curva 45° | 0,20 |\n| Tê | 0,50 |\n| Válvula esfera | 0,10 |\n| V. borboleta bloqueio | 0,50 |",
         "hy_global_note": "ℹ️ Diâmetro, comprimento, rugosidade e desnível são definidos nas **Configurações Globais** (barra lateral). Altere lá para refletir aqui.",
         "hy_fittings": "Conexões e Válvulas de Bloqueio",
-        "kv_curve_help": "Insira 3 pontos da curva da válvula: abertura (%) e Kv correspondente. A interpolação é log-linear (equal-percentage).",
+        "cap_unit_lbl": "Unidade de Capacidade (Coef. de Vazão):",
+        "op_unit_lbl": "Unidade de Abertura:",
+        "op_deg": "Graus (°)",
+        "op_pct": "Porcentagem (%)",
+        "kv_curve_help": "Insira 3 pontos da curva da válvula. A interpolação é log-linear (equal-percentage).",
         "kv_op_j": "Abertura (%)",
+        "kv_op_j_deg": "Abertura (°)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
+        "kv_cv_j": "Cv (US gal/min)",
         "ctrl_v": "Válvula de Controle (FCV)",
         "fcv_pos_lbl": "Posição Topológica da FCV:",
         "fcv_pos_up": "Layout 1 - FCV - Orifício (RO) - PCV - Descarga Tanque",
         "fcv_pos_down": "Layout 2 - Orifício (RO) - FCV - PCV - Descarga Tanque",
         "op_lbl": "Abertura da válvula (%)",
+        "op_lbl_deg": "Abertura da válvula (°)",
         "op_help": "Deslize para ver a curva do sistema atualizar em tempo real.",
         "op_freq_lbl": "Frequência da bomba (Hz)",
         "op_freq_help": "Deslize para ver a curva da bomba atualizar em tempo real.",
@@ -229,11 +236,11 @@ TR = {
         "pump_fmin": "Bomba — {f} Hz (mínimo)",
         "pump_fmax": "Bomba — {f} Hz (máximo)",
         "sim_hdr": "Curva de Operação",
-        "kv_calc": "**Calculadora rápida de Kv:**",
+        "kv_calc": "**Calculadora rápida:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "ΔP máx (bar):",
         "kv_rho": "ρ (kg/m³):",
-        "kv_res": "**Kv mínimo: {kv:.0f} m³/h·bar⁰·⁵**",
+        "kv_res": "**Kv mínimo:** {kv:.0f} m³/h·bar⁰·⁵ | **Cv mínimo:** {cv:.0f}",
         "hy_title": "Curva do Sistema – Altura Manométrica vs Vazão",
         "hy_px": "Vazão (m³/h)", "hy_py": "Altura Manométrica (m)",
         "seg_hdr": "Segmentos de Tubulação",
@@ -285,7 +292,7 @@ TR = {
         "fm_dp": "ΔP (bar):",
         "csv_export_btn": "⬇️ Baixar Pontos de Operação (CSV)",
         "csv_freq": "Freq_Bomba_Hz",
-        "csv_op": "Abertura_Valvula_%",
+        "csv_op": "Abertura_Valvula",
         "csv_q": "Vazao_m3h",
         "csv_h": "Altura_Manometrica_m",
         "csv_pin": "P_in_bar",
@@ -366,14 +373,21 @@ TR = {
         "fittings_help": "**Fittings & isolation valves** *(minor losses — K method)*\n\n| Component | K |\n|---|---|\n| 90° elbow | 0.30 |\n| 45° elbow | 0.20 |\n| Tee | 0.50 |\n| Ball valve | 0.10 |\n| Isolation butterfly | 0.50 |",
         "hy_global_note": "ℹ️ Inner diameter, length, roughness, and static head are set in **Global Parameters** (sidebar). Edit there to reflect here.",
         "hy_fittings": "Fittings & Isolation Valves",
-        "kv_curve_help": "Enter 3 points from the valve manufacturer's curve: opening (%) and corresponding Kv. Log-linear interpolation is used.",
+        "cap_unit_lbl": "Capacity Unit (Flow Coeff.):",
+        "op_unit_lbl": "Opening Unit:",
+        "op_deg": "Degrees (°)",
+        "op_pct": "Percentage (%)",
+        "kv_curve_help": "Enter 3 points from the valve manufacturer's curve. Log-linear interpolation is used.",
         "kv_op_j": "Opening (%)",
+        "kv_op_j_deg": "Opening (°)",
         "kv_kv_j": "Kv (m³/h·bar⁰·⁵)",
+        "kv_cv_j": "Cv (US gal/min)",
         "ctrl_v": "Control Valve (FCV)",
         "fcv_pos_lbl": "Control Layout",
         "fcv_pos_up": "Layout 1 - FCV - Orifice (RO) - PCV - Discharge",
         "fcv_pos_down": "Layout 2 - Orifice (RO) - FCV - PCV - Discharge",
         "op_lbl": "Valve opening (%)",
+        "op_lbl_deg": "Valve opening (°)",
         "op_help": "Slide to see the chart update in real-time.",
         "op_freq_lbl": "Pump frequency (Hz)",
         "op_freq_help": "Slide to see the pump curve update in real-time.",
@@ -405,11 +419,11 @@ TR = {
         "pump_fmin": "Pump — {f} Hz (min)",
         "pump_fmax": "Pump — {f} Hz (max)",
         "sim_hdr": "Operation Curve",
-        "kv_calc": "**Quick Kv calculator:**",
+        "kv_calc": "**Quick calculator:**",
         "kv_Q": "Q (m³/h):",
         "kv_dP": "Max ΔP (bar):",
         "kv_rho": "ρ (kg/m³):",
-        "kv_res": "**Minimum Kv: {kv:.0f} m³/h·bar⁰·⁵**",
+        "kv_res": "**Minimum Kv:** {kv:.0f} m³/h·bar⁰·⁵ | **Minimum Cv:** {cv:.0f}",
         "hy_title": "System Curve – Head vs Flow Rate",
         "hy_px": "Flow Rate (m³/h)", "hy_py": "Head (m)",
         "seg_hdr": "Piping Segments",
@@ -461,7 +475,7 @@ TR = {
         "fm_dp": "ΔP (bar):",
         "csv_export_btn": "⬇️ Download Operating Points (CSV)",
         "csv_freq": "Pump_Freq_Hz",
-        "csv_op": "Valve_Opening_%",
+        "csv_op": "Valve_Opening",
         "csv_q": "Flow_Rate_m3h",
         "csv_h": "Pump_Head_m",
         "csv_pin": "P_in_bar",
@@ -766,9 +780,10 @@ def build_report_pdf(lang, th_data, hy_data, global_params):
         Qr = d['Qr']
         ax.plot(Qr, d.get('H_sys_base', []), color='gray', lw=1.5, ls='--', label='Base Pipe')
         
-        lbl_ref1 = f"{d['op_ref1_val']}%"
-        lbl_ref3 = f"{d['op_ref3_val']}%"
-        lbl_usr  = f"{d['user_op']}%"
+        sym_u = d.get('op_unit_sym', '%')
+        lbl_ref1 = f"{d['op_ref1_val']}{sym_u}"
+        lbl_ref3 = f"{d['op_ref3_val']}{sym_u}"
+        lbl_usr  = f"{d['user_op']}{sym_u}"
 
         if d.get('show_ref', True):
             ax.plot(Qr, d['H_sys_ref1'],  color='steelblue', lw=2, label=f'Sistema {lbl_ref1}' if PT else f'System {lbl_ref1}')
@@ -1160,7 +1175,18 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         kv_Q_  = kk1.number_input(S["kv_Q"],  value=800.0, key="kvQ")
         kv_dP_ = kk2.number_input(S["kv_dP"], value=1.0, min_value=0.01, key="kvdP")
         kv_r_  = kk3.number_input(S["kv_rho"], value=850.0, key="kvrho")
-        st.success(S["kv_res"].format(kv=kv_Q_/math.sqrt(kv_dP_*kv_r_/1000)))
+        kv_calc_val = kv_Q_/math.sqrt(kv_dP_*kv_r_/1000)
+        st.success(S["kv_res"].format(kv=kv_calc_val, cv=kv_calc_val/0.865))
+
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        cap_unit = st.radio(S["cap_unit_lbl"], ["Kv", "Cv"], horizontal=True, key="cap_unit_rad")
+    with col_u2:
+        op_unit = st.radio(S["op_unit_lbl"], [S["op_pct"], S["op_deg"]], horizontal=True, key="op_unit_rad")
+
+    is_kv = (cap_unit == "Kv")
+    is_pct = (op_unit == S["op_pct"])
+    max_op_val = 100.0 if is_pct else 90.0
 
     # --- FCV POSITION SELECTOR ---
     pos_options = ['upstream', 'downstream']
@@ -1190,9 +1216,18 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     for j, (dop, dkv) in enumerate(default_cv_pts):
         with cc[j]:
             st.markdown(f"**{S['pc_pt']} {j+1}**")
-            op_j = st.number_input(S["kv_op_j"], value=float(dop), min_value=0.0, max_value=100.0, key=f"cvop_0_{j}")
-            kv_j = st.number_input(S["kv_kv_j"], value=float(dkv), min_value=0.0, key=f"cvkv_0_{j}")
-            cv_pts_op.append(op_j); cv_pts_kv.append(kv_j)
+            # Dynamically adjust defaults to look right for degrees and Cv
+            dop_disp = dop if is_pct else dop * 0.9
+            dkv_disp = dkv if is_kv else dkv / 0.865
+
+            op_label = S["kv_op_j"] if is_pct else S["kv_op_j_deg"]
+            cap_label = S["kv_kv_j"] if is_kv else S["kv_cv_j"]
+
+            op_j = st.number_input(op_label, value=float(dop_disp), min_value=0.0, max_value=max_op_val, key=f"cvop_0_{j}")
+            kv_j_raw = st.number_input(cap_label, value=float(dkv_disp), min_value=0.0, key=f"cvkv_0_{j}")
+            
+            cv_pts_op.append(op_j)
+            cv_pts_kv.append(kv_j_raw if is_kv else kv_j_raw * 0.865)
 
     import numpy as _np
     from scipy.interpolate import interp1d as _interp1d
@@ -1339,7 +1374,8 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
 
     col_sl1, col_sl2 = st.columns(2)
     with col_sl1:
-        user_op = st.slider(S["op_lbl"], 0, 100, 100, key="main_valve_slider", help=S["op_help"])
+        slider_lbl = S["op_lbl"] if is_pct else S["op_lbl_deg"]
+        user_op = st.slider(slider_lbl, 0, int(max_op_val), int(max_op_val), key="main_valve_slider", help=S["op_help"])
     with col_sl2:
         user_freq = st.slider(S["op_freq_lbl"], int(pc_fmin), int(pc_fmax), int(pc_freq0), key="main_pump_slider", help=S["op_freq_help"])
 
@@ -1351,9 +1387,10 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
     op_ref1 = float(_ops_primeira[0])
     op_ref3 = float(_ops_primeira[-1])
 
-    lbl_ref1 = f"{op_ref1:g}%"
-    lbl_ref3 = f"{op_ref3:g}%"
-    lbl_usr  = f"{user_op:g}%"
+    unit_sym = "%" if is_pct else "°"
+    lbl_ref1 = f"{op_ref1:g}{unit_sym}"
+    lbl_ref3 = f"{op_ref3:g}{unit_sym}"
+    lbl_usr  = f"{user_op:g}{unit_sym}"
 
     def sys_curve_base(Q_arr, ro_kv_val, pcv_set_val):
         H = []
@@ -1486,7 +1523,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             col = '#9C27B0'
             sz = 16
             lw = 2
-            txt = f"  <b>Rated @ {freq_val}Hz / {user_op}%</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"
+            txt = f"  <b>Rated @ {freq_val}Hz / {user_op}{unit_sym}</b><br>  Q={q_op:.0f} m³/h | H={h_op:.1f} m"
         else:
             sz = 13
             lw = 1.5
@@ -1571,7 +1608,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
         st.subheader(S["op_comb"])
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("Freq. VFD" if lang=="pt" else "VFD Freq.", f"{user_freq} Hz")
-        m2.metric("Abertura FCV" if lang=="pt" else "FCV Opening", f"{user_op} %")
+        m2.metric("Abertura FCV" if lang=="pt" else "FCV Opening", f"{user_op} {unit_sym}")
         m3.metric("Vazão (Q)" if lang=="pt" else "Flow (Q)", f"{q_usr_cust:.1f} m³/h")
         m4.metric("Altura (H)" if lang=="pt" else "Head (H)", f"{h_usr_cust:.1f} m")
         dP_bar_calc = (h_usr_cust - float(cs_sys_base(q_usr_cust))) * hy_rho * 9.81 / 100000.0
@@ -1616,7 +1653,7 @@ $$K_v = \frac{Q\,[\text{m}^3/\text{h}]}{\sqrt{\Delta P\,[\text{bar}]\cdot\dfrac{
             'user_freq': user_freq,
             'ops_fmin': ops_as_list(ops_fmin), 'ops_fnom': ops_as_list(ops_fnom), 'ops_fmax': ops_as_list(ops_fmax),
             'Qr': Qr, 'H_sys_base': H_sys_base, 'H_sys_ref1': H_sys_ref1, 'H_sys_ref3': H_sys_ref3, 'H_sys_usr': H_sys_usr,
-            'user_op': user_op, 'op_ref1_val': op_ref1, 'op_ref3_val': op_ref3,
+            'user_op': user_op, 'op_ref1_val': op_ref1, 'op_ref3_val': op_ref3, 'op_unit_sym': unit_sym,
             'Qnom': Qnom, 'Hnom': Hnom, 'Qmin': Qmin, 'Hmin': Hmin, 'Qmx': Qmx,  'Hmx': Hmx,
             'ops_fmin_pts': ops_fmin, 'ops_fnom_pts': ops_fnom, 'ops_fmax_pts': ops_fmax,
             'op_usr_custom': op_usr_custom,
