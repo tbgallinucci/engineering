@@ -1073,7 +1073,7 @@
         "Q_h": 550.0,
         "sd_3": 0.2545,
         "sL_0": 0.8,
-        "fluid_choice": "KRD MAX 685 (68.2 - 115.6 cP)",
+        "fluid_choice": "KRD MAX 225 (11.4 - 40.8 cP)",
         "fm_active": true,
         "hy_mu_cP": 25.0,
         "sredn_1": 0,
